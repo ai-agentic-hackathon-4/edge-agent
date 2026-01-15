@@ -1,42 +1,89 @@
+import sys
 import os
-import gradio as gr
-from huggingface_hub import hf_hub_download
 from llama_cpp import Llama
+from llama_cpp.llama_chat_format import Llava15ChatHandler
 
-MEMORY_LENGTH = 2
-CONTEXT_SIZE = 2048
-MAX_TOKENS = 512
-REPO_ID = os.environ.get("GEMMA3N_REPO_ID", "")
-GGUF_FILE = os.environ.get("GEMMA3N_GGUF_FILE", "")
-N_GPU_LAYERS = int(os.environ.get("GEMMA3N_N_GPU_LAYERS", "0"))
+# モデルパス設定 (セットアップガイドに合わせて調整してください)
+MODEL_PATH = "./models/gemma-3n-e2b-it-q4_k_m.gguf"
+# Vision用プロジェクター(mmproj)がある場合は指定 (Gemma 3nのサポート状況による)
+MMPROJ_PATH = None # 例: "./models/gemma-3n-mmproj.gguf"
 
-if not REPO_ID or not GGUF_FILE:
-    raise ValueError("Set GEMMA3N_REPO_ID and GEMMA3N_GGUF_FILE for the GGUF source.")
+def main():
+    if not os.path.exists(MODEL_PATH):
+        print(f"Error: Model not found at {MODEL_PATH}")
+        print("Please download the model first (see gemma3n_setup_guide.md)")
+        return
 
-model_path = hf_hub_download(repo_id=REPO_ID, filename=GGUF_FILE)
-llm = Llama(model_path, n_gpu_layers=N_GPU_LAYERS, n_ctx=CONTEXT_SIZE)
+    print(f"Loading model: {MODEL_PATH}...")
+    
+    # チャットハンドラーの設定 (Visionモデルの場合)
+    # 注意: Gemma 3nのVisionサポートはllama.cppのバージョンに依存します。
+    # 汎用的なハンドラーとしてLlava15ChatHandlerを使用する例ですが、
+    # モデルによっては clip_model_path が必要な場合があります。
+    chat_handler = None
+    if MMPROJ_PATH and os.path.exists(MMPROJ_PATH):
+        try:
+             chat_handler = Llava15ChatHandler(clip_model_path=MMPROJ_PATH)
+             print("Vision support enabled (via mmproj).")
+        except Exception as e:
+             print(f"Warning: Failed to load vision handler: {e}")
 
+    # モデル読み込み (n_ctxは必要に応じて増やす)
+    llm = Llama(
+        model_path=MODEL_PATH,
+        chat_handler=chat_handler,
+        n_ctx=2048, 
+        n_gpu_layers=-1, # Raspberry PiではCPU使用が基本ですが、Vulkan等が使える場合は調整
+        verbose=True
+    )
 
-def construct_prompt(message, history):
-    prompt_parts = []
-    if history:
-        for user_msg, assistant_msg in history[-MEMORY_LENGTH:]:
-            prompt_parts.append("<start_of_turn>user\n" + user_msg + "<end_of_turn>\n<start_of_turn>model\n" + assistant_msg + "<end_of_turn>\n")
-    prompt_parts.append("<start_of_turn>user\n" + message + "<end_of_turn>\n<start_of_turn>model\n")
-    return "".join(prompt_parts)
+    print("\n--- Gemma 3n Chat (type 'quit' to exit) ---")
+    
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant running on a Raspberry Pi."}
+    ]
 
+    while True:
+        try:
+            user_input = input("\nUser: ")
+            if user_input.lower() in ["quit", "exit"]:
+                break
+            
+            # 画像入力ロジックの例 (画像パスが入力された場合)
+            # 形式: "image: /path/to/image.jpg Describe this."
+            content = []
+            if user_input.startswith("image:"):
+                parts = user_input.split(" ", 2)
+                if len(parts) >= 2:
+                    img_path = parts[1]
+                    text_query = parts[2] if len(parts) > 2 else "Describe this image."
+                    
+                    # 画像URL/Pathをメッセージに追加
+                    content.append({"type": "image_url", "image_url": {"url": f"file://{img_path}"}})
+                    content.append({"type": "text", "text": text_query})
+                else:
+                    content = user_input
+            else:
+                content = user_input
 
-def predict(message, history):
-    prompt = construct_prompt(message, history)
-    streamer = llm.create_completion(prompt, max_tokens=MAX_TOKENS, stream=True)
-    answer = ""
-    for msg in streamer:
-        choice = msg["choices"][0]
-        if "text" in choice:
-            token = choice["text"]
-            if token != "<":
-                answer += token
-                yield answer
+            messages.append({"role": "user", "content": content})
 
+            # 推論実行
+            response = llm.create_chat_completion(
+                messages=messages,
+                max_tokens=256,
+                temperature=0.7
+            )
 
-gr.ChatInterface(predict).queue().launch()
+            response_text = response['choices'][0]['message']['content']
+            print(f"Gemma: {response_text}")
+            
+            messages.append({"role": "assistant", "content": response_text})
+
+        except KeyboardInterrupt:
+            break
+        except Exception as e:
+            print(f"Error: {e}")
+
+if __name__ == "__main__":
+    main()
