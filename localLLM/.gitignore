@@ -1,2 +1,4 @@
 llama.cpp
 env
+__pycache__
+models
