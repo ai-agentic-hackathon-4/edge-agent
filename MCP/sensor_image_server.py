@@ -48,15 +48,33 @@ async def capture_image(
         raise ValueError("Width and height must be positive")
 
     base = (base_url or DEFAULT_BASE_URL).rstrip("/")
-    image_bytes, fmt, w, h = await _fetch_image(base, width, height, timeout_seconds)
+    # Fetch data but don't decode to bytes, keep as base64 string for the model
+    # We re-implement _fetch_image logic slightly here or modify it, 
+    # but for safety, let's just get the raw base64 from the sensor.
+    
+    url = f"{base}/image"
+    params = {"width": width, "height": height}
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        resp = await client.get(url, params=params)
+        resp.raise_for_status()
+        payload = resp.json()
+
+    if "data_base64" not in payload:
+        raise ValueError("Sensor response missing data_base64")
+    
+    b64_data = payload["data_base64"]
+    fmt = str(payload.get("format", "jpeg")).lower() or "jpeg"
+    w = int(payload.get("width", width))
+    h = int(payload.get("height", height))
     mime = f"image/{fmt}"
 
+    # Return as TextContent so the model sees the base64 string directly
+    # and can process it according to the system instructions.
     return [
-        ImageContent(type="image", data=image_bytes, mimeType=mime),
         TextContent(
             type="text",
-            text=f"width={w}, height={h}, mime={mime}, source={base}/image",
-        ),
+            text=f"Image captured. Metadata: width={w}, height={h}, mime={mime}.\nBase64 Data: {b64_data}"
+        )
     ]
 
 
