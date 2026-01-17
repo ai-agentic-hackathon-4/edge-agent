@@ -11,5 +11,9 @@ COPY . .
 ENV PORT=8080
 ENV GOOGLE_GENAI_USE_VERTEXAI=true
 
+# Create data directory for session persistence
+RUN mkdir -p /app/data
+
 # Use adk run agent as the entrypoint for CLI interaction
-CMD ["adk", "run", "agent"]
+# Default to using local SQLite for session persistence (mount /app/data to persist)
+CMD ["adk", "run", "agent", "--session_service_uri", "sqlite:////app/data/sessions.db"]

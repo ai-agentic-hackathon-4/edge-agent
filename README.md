@@ -44,10 +44,21 @@
    ```
 
 2. **エージェントの実行**
-   `adk run agent` コマンドで対話モードを開始します（DockerfileのデフォルトCMDとして定義済み）。
+   以下のコマンドで実行します。`edge-agent/data` ディレクトリがホストに作成され、会話履歴 (`sessions.db`) が自動的に保存されます。
+   
    ```bash
-   docker run -i --rm --network edge-agent-net --env-file edge-agent/agent/.env edge-agent
+   # データディレクトリの作成（なければ）
+   mkdir -p edge-agent/data
+   
+   # 実行（会話履歴は自動保存されます）
+   docker run -i --rm \
+     --network edge-agent-net \
+     --env-file edge-agent/agent/.env \
+     -v $(pwd)/edge-agent/data:/app/data \
+     edge-agent
    ```
+   
+   終了後も `.db` ファイルが残るため、次回起動時に前回の会話の続きから再開できます。
    
    起動後、プロンプトに以下のように入力してください：
    ```
