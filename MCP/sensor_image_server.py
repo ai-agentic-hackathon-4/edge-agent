@@ -1,5 +1,7 @@
 import base64
+import datetime
 import os
+import pathlib
 from typing import Optional, Tuple
 
 import httpx
@@ -67,6 +69,21 @@ async def capture_image(
     w = int(payload.get("width", width))
     h = int(payload.get("height", height))
     mime = f"image/{fmt}"
+
+    # Debug: Save captured image to local file if /app/data exists
+    try:
+        debug_dir = pathlib.Path("/app/data/debug_images")
+        if debug_dir.parent.exists():
+            debug_dir.mkdir(exist_ok=True)
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"capture_{timestamp}.{fmt}"
+            filepath = debug_dir / filename
+            
+            with open(filepath, "wb") as f:
+                f.write(base64.b64decode(b64_data))
+            print(f"Debug: Saved captured image to {filepath}")
+    except Exception as e:
+        print(f"Debug: Failed to save image: {e}")
 
     # Return as TextContent so the model sees the base64 string directly
     # and can process it according to the system instructions.
