@@ -1,6 +1,7 @@
 import asyncio
 import os
 import sys
+from typing import Any
 
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, McpToolset, StdioConnectionParams
@@ -45,7 +46,8 @@ class GCSAwareMcpToolset(McpToolset):
         return tools
 
 from pydantic import ConfigDict, Field
-from typing import Any, List
+from pydantic import ConfigDict, Field
+from typing import List
 
 # Vertex AI / Gemini 設定（値は環境変数で上書きしてください）
 # Gemini 3 (2026年時点の最新標準: gemini-3-flash-preview)
