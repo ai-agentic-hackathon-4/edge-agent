@@ -9,8 +9,9 @@
 - **Tooling**: MCP (Model Context Protocol)
 - **Transport**: Stdio (エージェントがMCPサーバーをサブプロセスとして起動)
 - **Features**:
-    - 自律的なツール実行 (`capture_image`)
+    - 自律的なツール実行 (`capture_image`, `get_meter_data`)
     - マルチモーダル入力処理 (Base64テキスト形式での画像受け渡し)
+    - Switchbot 温湿度取得 (MCP経由)
 
 ## 前提条件
 
@@ -38,9 +39,9 @@
 ## ビルドと実行
 
 1. **Dockerイメージのビルド**
-   カレントディレクトリ (`ai-agentic-hackathon-4`) から実行します。
+   `edge-agent` ディレクトリ内で実行します。
    ```bash
-   docker build -t edge-agent ./edge-agent
+   docker build -t edge-agent .
    ```
 
 2. **エージェントの実行**
@@ -48,13 +49,13 @@
    
    ```bash
    # データディレクトリの作成（なければ）
-   mkdir -p edge-agent/data
+   mkdir -p data
    
    # 実行（会話履歴は自動保存されます）
    docker run -i --rm \
      --network edge-agent-net \
-     --env-file edge-agent/agent/.env \
-     -v $(pwd)/edge-agent/data:/app/data \
+     --env-file agent/.env \
+     -v $(pwd)/data:/app/data \
      edge-agent
    ```
    
@@ -64,6 +65,26 @@
    ```
    capture image
    ```
+   または
+   ```
+   今の部屋の温度は？
+   ```
+
+3. **簡易実行（Web UI）**
+   Dockerを使わず、ローカル環境でWeb UIを使ってエージェントを実行する場合のスクリプトです。
+   ※ `requirements.txt` のインストールが必要です。
+   
+   ```bash
+   ./run.sh
+   ```
+   ブラウザで `http://localhost:8501` にアクセスして操作できます。
+
+## 動作確認 (Verification)
+
+環境依存（MCPライブラリなど）の問題を回避してロジックを確認するためのモック・スクリプトを用意しています。
+```bash
+python3 scripts/verify_mcp_mocked.py
+```
 
 ## トラブルシューティング
 
