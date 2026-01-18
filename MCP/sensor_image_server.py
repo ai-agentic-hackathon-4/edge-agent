@@ -1,6 +1,7 @@
 import base64
 import datetime
 import os
+import sys
 import pathlib
 from typing import Optional, Tuple
 
@@ -76,16 +77,17 @@ async def capture_image(
         # Debug mock
         if os.environ.get("DEBUG_MOCK_GCS"):
             gcs_uri = "gs://mock-bucket/mock-image.jpg"
-            print(f"DEBUG: Mocked upload to {gcs_uri}")
+            sys.stderr.write(f"DEBUG: Mocked upload to {gcs_uri}\n")
         else:
             from MCP.uploader import GCSUploader
             uploader = GCSUploader()
             image_bytes = base64.b64decode(b64_data)
             gcs_uri = uploader.upload_bytes(image_bytes, content_type=mime)
-            print(f"Uploaded image to {gcs_uri}")
+            sys.stderr.write(f"Uploaded image to {gcs_uri}\n")
         
     except Exception as e:
-        print(f"Error uploading to GCS: {e}")
+        sys.stderr.write(f"Error uploading to GCS: {e}\n")
+        # Fallback to returning base64 if GCS fails? 
         # Fallback to returning base64 if GCS fails? 
         # Or better, return error message so user knows GCS failed.
         # For now, let's append error but still return base64 as fallback or just fail.
