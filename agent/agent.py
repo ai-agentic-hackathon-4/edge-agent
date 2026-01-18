@@ -31,13 +31,14 @@ class GCSAwareMcpToolset(McpToolset):
                             # Check for GCS URI in text
                             if content.get('type') == 'text' and 'gs://' in content.get('text', ''):
                                 text = content['text']
-                                match = re.search(r'gs://[^\s\.\)]+', text) # Basic regex
+                                # Allow dots in URI for file extensions
+                                match = re.search(r'gs://[^\s\)]+', text)
                                 if match:
                                     uri = match.group(0)
-                                    # Strip trailing punctuation if any
+                                    # Strip trailing punctuation if any (like . or , at end of sentence)
                                     uri = uri.rstrip('.,;')
                                     print(f"[Agent] Detected GCS URI: {uri}")
-                                    return genai_types.Part.from_uri(file_uri=uri, mime_type="image/jpeg")
+                                    return [genai_types.Part.from_uri(file_uri=uri, mime_type="image/jpeg")]
                     return result
                 
                 # Bind wrapper to instance
@@ -56,6 +57,59 @@ MODEL_ID = "gemini-3-flash-preview"
 class CustomLlmAgent(LlmAgent):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     tools: List[Any] = Field(default=[], exclude=True)
+
+from google.adk.events.event import Event
+import google.adk.flows.llm_flows.functions as adk_functions
+
+# --- Monkey Patch Start ---
+# Patch ADK's __build_response_event to allow returning multimodal Parts from tools.
+# Default ADK implementation forces everything into a JSON dict, which breaks Part objects.
+original_build_response_event = adk_functions.__build_response_event
+
+def custom_build_response_event(
+    tool,
+    function_result,
+    tool_context,
+    invocation_context,
+) -> Event:
+    # Specs requires the result to be a dict.
+    if not isinstance(function_result, dict):
+        function_result = {'result': function_result}
+
+    extra_parts = []
+    # Check if 'result' contains a list of Parts (from our GCSAwareMcpToolset)
+    if 'result' in function_result and isinstance(function_result['result'], list):
+        if len(function_result['result']) > 0 and isinstance(function_result['result'][0], genai_types.Part):
+            extra_parts = function_result['result']
+            # Replace the list of Parts in the JSON response with a textual placeholder
+            function_result = {'result': 'Multimodal content returned (see additional parts).'}
+
+    # Create the standard FunctionResponse part (required to close the function call)
+    part_function_response = genai_types.Part.from_function_response(
+        name=tool.name, response=function_result
+    )
+    part_function_response.function_response.id = tool_context.function_call_id
+
+    # Create content with BOTH the FunctionResponse and the Image Parts
+    all_parts = [part_function_response] + extra_parts
+    
+    content = genai_types.Content(
+        role='user',
+        parts=all_parts,
+    )
+
+    function_response_event = Event(
+        invocation_id=invocation_context.invocation_id,
+        author=invocation_context.agent.name,
+        content=content,
+        actions=tool_context.actions,
+        branch=invocation_context.branch,
+    )
+    return function_response_event
+
+# Apply patch
+adk_functions.__build_response_event = custom_build_response_event
+# --- Monkey Patch End ---
 
 def create_agent():
     # MCP Toolset の設定 (Stdioモード)
