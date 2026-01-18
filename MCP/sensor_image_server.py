@@ -41,26 +41,16 @@ async def _fetch_image(
 
 @server.tool()
 async def capture_image(
-    width: Optional[int] = None,
-    height: Optional[int] = None,
     base_url: Optional[str] = None,
-    timeout_seconds: float = 5.0,
+    timeout_seconds: float = 30.0,
 ):
-    """Fetch a JPEG from the sensor API and return it as MCP image content."""
-    if (width is not None and width <= 0) or (height is not None and height <= 0):
-        raise ValueError("Width and height must be positive")
-
+    """Fetch a full-size JPEG from the sensor API and return it as MCP image content."""
     base = (base_url or DEFAULT_BASE_URL).rstrip("/")
-    # Fetch data but don't decode to bytes, keep as base64 string for the model
-    # We re-implement _fetch_image logic slightly here or modify it, 
-    # but for safety, let's just get the raw base64 from the sensor.
     
     url = f"{base}/image"
-    params = {}
-    if width: params["width"] = width
-    if height: params["height"] = height
+    # No params = native resolution (full size)
     async with httpx.AsyncClient(timeout=timeout_seconds) as client:
-        resp = await client.get(url, params=params)
+        resp = await client.get(url)
         resp.raise_for_status()
         payload = resp.json()
 
@@ -69,8 +59,8 @@ async def capture_image(
     
     b64_data = payload["data_base64"]
     fmt = str(payload.get("format", "jpeg")).lower() or "jpeg"
-    w = int(payload.get("width", width))
-    h = int(payload.get("height", height))
+    w = payload.get("width")
+    h = payload.get("height")
     mime = f"image/{fmt}"
 
 
