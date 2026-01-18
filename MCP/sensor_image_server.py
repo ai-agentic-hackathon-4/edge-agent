@@ -41,13 +41,13 @@ async def _fetch_image(
 
 @server.tool()
 async def capture_image(
-    width: int = 800,
-    height: int = 600,
+    width: Optional[int] = None,
+    height: Optional[int] = None,
     base_url: Optional[str] = None,
     timeout_seconds: float = 5.0,
 ):
     """Fetch a JPEG from the sensor API and return it as MCP image content."""
-    if width <= 0 or height <= 0:
+    if (width is not None and width <= 0) or (height is not None and height <= 0):
         raise ValueError("Width and height must be positive")
 
     base = (base_url or DEFAULT_BASE_URL).rstrip("/")
@@ -56,7 +56,9 @@ async def capture_image(
     # but for safety, let's just get the raw base64 from the sensor.
     
     url = f"{base}/image"
-    params = {"width": width, "height": height}
+    params = {}
+    if width: params["width"] = width
+    if height: params["height"] = height
     async with httpx.AsyncClient(timeout=timeout_seconds) as client:
         resp = await client.get(url, params=params)
         resp.raise_for_status()

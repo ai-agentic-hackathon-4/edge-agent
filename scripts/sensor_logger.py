@@ -70,13 +70,13 @@ def fetch_sensor_data(client: httpx.Client, endpoint: str) -> dict:
 
 def fetch_and_upload_image(client: httpx.Client, uploader: GCSUploader) -> str:
     try:
-        # High resolution fetch
+        # High resolution fetch (native aspect ratio)
         url = f"{SENSOR_API_BASE}/image"
-        params = {"width": 1920, "height": 1080}
-        logger.info(f"Capturing high-res image from {url}...")
+        # params = {"width": 1920, "height": 1080} # Removed to preserve aspect ratio
+        logger.info(f"Capturing image from {url} (native resolution)...")
         
         # Increase timeout for image capture/download
-        response = client.get(url, params=params, timeout=30.0)
+        response = client.get(url, timeout=30.0)
         response.raise_for_status()
         data = response.json()
         
