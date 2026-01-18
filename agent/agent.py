@@ -123,7 +123,8 @@ def create_agent():
                 command="python",
                 args=[server_script_path],
                 env=os.environ.copy()
-            )
+            ),
+            timeout=120.0
         ),
     )
     
