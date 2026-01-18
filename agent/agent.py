@@ -13,8 +13,8 @@ import collections.abc
 
 # Wrapper class to make MCP tools return Part objects for GCS URIs
 class GCSAwareMcpToolset(McpToolset):
-    async def get_tools(self) -> collections.abc.Iterable[Any]:
-        tools = await super().get_tools()
+    async def get_tools(self, *args, **kwargs) -> collections.abc.Iterable[Any]:
+        tools = await super().get_tools(*args, **kwargs)
         # tools is an iterable (list), but type hint says Iterable.
         # super implementation returns a list.
         
