@@ -1,3 +1,48 @@
+"""
+Sensor Data Logger with Firestore Integration.
+
+This script continuously monitors sensor data and logs it to Firestore with
+periodic image captures uploaded to GCS.
+
+Features:
+- Logs temperature, humidity, and soil moisture every 60 seconds
+- Captures and uploads images to GCS every 30 minutes
+- Stores data in Firestore with timestamps
+- Rotating log files for debugging
+
+Environment Variables (loaded from agent/.env):
+- SENSOR_API_BASE: Sensor node base URL (default: http://192.168.11.226:8000)
+- GOOGLE_APPLICATION_CREDENTIALS: Path to service account key
+- GCS_BUCKET_NAME: GCS bucket for image uploads
+- GOOGLE_CLOUD_PROJECT: Implicit from credentials
+
+Firestore Database:
+- Database: ai-agentic-hackathon-4-db
+- Collection: sensor_logs
+- Document structure:
+  {
+    timestamp: datetime,
+    unix_timestamp: float,
+    date: str (YYYY-MM-DD),
+    temperature: float,
+    humidity: float,
+    soil_moisture: float,
+    soil_raw: int,
+    image_uri: str (optional, gs://...),
+    raw_data: {meter: {...}, soil: {...}}
+  }
+
+Usage:
+    # Start logger (runs in background)
+    ./scripts/start_logger.sh
+    
+    # Stop logger
+    ./scripts/stop_logger.sh
+    
+    # Run directly
+    python scripts/sensor_logger.py
+"""
+
 import os
 import sys
 import base64

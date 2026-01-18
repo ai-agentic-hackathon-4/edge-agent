@@ -1,3 +1,27 @@
+"""
+Edge Agent with Gemini 3 and MCP Integration.
+
+This module implements a plant environment management agent using:
+- Google ADK (Agent Development Kit)
+- Gemini 3 Flash model via Vertex AI
+- Model Context Protocol (MCP) for sensor and device control
+- Google Cloud Storage (GCS) for efficient image handling
+
+Key Components:
+- GCSAwareMcpToolset: Wrapper that converts GCS URIs to genai_types.Part objects
+- CustomLlmAgent: Extended LlmAgent with tool support
+- Monkey patch for __build_response_event: Preserves Part objects in tool responses
+
+Environment Variables:
+- GOOGLE_GENAI_USE_VERTEXAI: Set to "true" for Vertex AI
+- GOOGLE_CLOUD_PROJECT: GCP project ID
+- GOOGLE_CLOUD_REGION: GCP region (e.g., us-central1)
+- GOOGLE_APPLICATION_CREDENTIALS: Path to service account key JSON
+- GCS_BUCKET_NAME: GCS bucket for image storage
+- MCP_SERVER_PATH: Path to MCP server script (default: /app/MCP/sensor_image_server.py)
+- SENSOR_API_BASE: Sensor node base URL (default: http://192.168.11.226:8000)
+"""
+
 import asyncio
 import os
 import sys
@@ -13,6 +37,15 @@ import collections.abc
 
 # Wrapper class to make MCP tools return Part objects for GCS URIs
 class GCSAwareMcpToolset(McpToolset):
+    """
+    MCP Toolset wrapper that automatically converts GCS URIs to genai_types.Part objects.
+    
+    This wrapper intercepts the output of the 'capture_image' tool and detects 
+    Google Cloud Storage URIs (gs://...). When found, it converts them to 
+    genai_types.Part objects that Gemini models can process directly.
+    
+    This enables efficient multimodal processing without Base64 encoding overhead.
+    """
     async def get_tools(self, *args, **kwargs) -> collections.abc.Iterable[Any]:
         tools = await super().get_tools(*args, **kwargs)
         # tools is an iterable (list), but type hint says Iterable.
@@ -112,6 +145,20 @@ adk_functions.__build_response_event = custom_build_response_event
 # --- Monkey Patch End ---
 
 def create_agent():
+    """
+    Create and configure the sensor management agent.
+    
+    Returns:
+        CustomLlmAgent: Configured agent with MCP toolset for sensor monitoring
+                       and device control.
+    
+    The agent is configured to:
+    1. Identify plants from images
+    2. Diagnose plant health
+    3. Monitor environment (temp, humidity, soil moisture)
+    4. Control devices (AC, humidifier) to optimize conditions
+    5. Provide watering advice
+    """
     # MCP Toolset の設定 (Stdioモード)
     # MCP_SERVER_PATH 環境変数があればそれを使用し、なければコンテナ内のデフォルトパスを使用
     default_server_path = "/app/MCP/sensor_image_server.py"

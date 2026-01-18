@@ -1,3 +1,26 @@
+"""
+MCP Server for Sensor and Device Control.
+
+This FastMCP server provides 5 tools for plant environment management:
+1. capture_image: Capture image from sensor and upload to GCS
+2. get_meter_data: Get temperature and humidity from Switchbot meter
+3. get_soil_moisture: Get soil moisture sensor data
+4. control_air_conditioner: Control AC via IR remote
+5. control_humidifier: Control humidifier device
+
+The server is designed to run as a subprocess (Stdio transport) launched by
+the agent, but can also run standalone for testing.
+
+Environment Variables:
+- SENSOR_API_BASE: Base URL for sensor node API (default: http://192.168.11.226:8000)
+- GCS_BUCKET_NAME: GCS bucket name for image uploads (required)
+- GOOGLE_APPLICATION_CREDENTIALS: Path to GCP service account key (required)
+- DEBUG_MOCK_GCS: Set to "true" to mock GCS uploads (for testing)
+
+Usage:
+    python sensor_image_server.py
+"""
+
 import base64
 import datetime
 import os
