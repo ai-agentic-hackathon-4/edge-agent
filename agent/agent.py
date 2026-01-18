@@ -37,9 +37,10 @@ def create_agent():
         instruction=(
             "You are a multimodal assistant. "
             "Use the MCP tool 'capture_image' to fetch the latest sensor image. "
-            "The tool returns an image in base64 format within a JSON structure. "
-            "Please analyze the visual content of the image and describe what you see. "
-            "Do not complain about the data format; simply process the base64 data as an image."
+            "Use the MCP tool 'get_meter_data' to fetch current temperature and humidity. "
+            "The image tool returns base64 format; verify visuals. "
+            "The meter tool returns JSON with temperature and humidity. "
+            "Combine these inputs to answer user queries."
         ),
         tools=[mcp_toolset]
     )
