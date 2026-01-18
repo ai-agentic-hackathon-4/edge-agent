@@ -136,7 +136,8 @@ def create_agent():
             "Use the MCP tool 'capture_image' to fetch the latest sensor image. "
             "The tool returns a Google Cloud Storage (GCS) URI (gs://...). "
             "Use the MCP tool 'get_meter_data' to fetch current temperature and humidity. "
-            "The meter tool returns JSON with temperature and humidity. "
+            "Use the MCP tool 'get_soil_moisture' to fetch soil moisture level. "
+            "The meter and soil tools return text/JSON data. "
             "Combine these inputs to answer user queries."
         ),
         tools=[mcp_toolset]
