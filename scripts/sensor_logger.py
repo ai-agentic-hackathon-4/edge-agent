@@ -42,7 +42,21 @@ INTERVAL_SECONDS = 60
 IMAGE_INTERVAL_MINUTES = 30
 
 # Logging setup
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+os.makedirs(log_dir, exist_ok=True)
+log_file = os.path.join(log_dir, "sensor_logger.log")
+
+from logging.handlers import RotatingFileHandler
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        RotatingFileHandler(log_file, maxBytes=1*1024*1024, backupCount=3)
+    ],
+    force=True
+)
 logger = logging.getLogger(__name__)
 
 def fetch_sensor_data(client: httpx.Client, endpoint: str) -> dict:
