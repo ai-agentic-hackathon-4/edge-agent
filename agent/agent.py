@@ -58,6 +58,7 @@ class CustomLlmAgent(LlmAgent):
 def create_agent():
     # MCP Toolset の設定 (Stdioモード)
     # MCP_SERVER_PATH 環境変数があればそれを使用し、なければコンテナ内のデフォルトパスを使用
+    default_server_path = "/app/MCP/sensor_image_server.py"
     server_script_path = os.environ.get("MCP_SERVER_PATH", default_server_path)
     
     mcp_toolset = GCSAwareMcpToolset(
