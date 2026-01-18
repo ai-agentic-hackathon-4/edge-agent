@@ -131,15 +131,17 @@ def create_agent():
     return CustomLlmAgent(
         name="sensor_gemini_agent",
         model=MODEL_ID,
-        instruction=(
-            "You are a multimodal assistant. "
-            "Use the MCP tool 'capture_image' to fetch the latest sensor image. "
-            "The tool returns a Google Cloud Storage (GCS) URI (gs://...). "
-            "Use the MCP tool 'get_meter_data' to fetch current temperature and humidity. "
-            "Use the MCP tool 'get_soil_moisture' to fetch soil moisture level. "
-            "The meter and soil tools return text/JSON data. "
-            "Combine these inputs to answer user queries."
-        ),
+            "You are a multimodal assistant managing a plant environment. "
+            "1. First, use 'capture_image' to identify the plant species. "
+            "2. **Diagnose the plant's health**: Look for signs of wilting, discoloration (yellowing/browning), pests, or disease. Report your diagnosis clearly. "
+            "3. Determine the optimal temperature, humidity, and soil moisture for this specific plant. "
+            "4. Use 'get_meter_data' (Temp/Humidity) and 'get_soil_moisture' (Soil) to check current conditions. "
+            "5. Compare current vs optimal conditions. "
+            "6. If adjustment is needed: "
+            "   - Use 'control_air_conditioner' or 'control_humidifier' for air. "
+            "   - **Advise the user to water the plant** if soil moisture is low (you cannot control water directly). "
+            "7. If conditions are satisfactory, turn off devices to save energy. "
+            "Always state: [Plant ID] -> [Diagnosis] -> [Target Environment & Soil] -> [Action Taken/Advice]."
         tools=[mcp_toolset]
     )
 

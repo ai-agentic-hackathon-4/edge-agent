@@ -141,5 +141,117 @@ async def get_soil_moisture(
         )
     ]
 
+@server.tool()
+async def control_air_conditioner(
+    temperature: int,
+    mode: str,
+    fan_speed: str,
+    is_on: bool,
+    base_url: Optional[str] = None,
+    timeout_seconds: float = 10.0,
+):
+    """
+    Control the Air Conditioner (Infrared Remote).
+    Args:
+        temperature (int): Target temperature (e.g., 25).
+        mode (str): One of "auto", "cool", "dry", "fan", "heat".
+        fan_speed (str): One of "auto", "low", "medium", "high".
+        is_on (bool): Power state.
+    """
+    base = (base_url or DEFAULT_BASE_URL).rstrip("/")
+    url = f"{base}/control/air-conditioner/settings"
+    
+    # Map strings to expected Enum values if needed. 
+    # API schema expects int for Enum but Pydantic can often handle strings if they match name.
+    # However, our sensor-node Enums are IntEnum.
+    # Let's map string input to IntEnum values manually to be safe or update schema.
+    # The sensor-node `ACSettings` uses:
+    # ACMode(IntEnum): AUTO=1...
+    # Input `mode` string needs to be mapped.
+    
+    # Simple mapping
+    ac_modes = {"auto": 1, "cool": 2, "dry": 3, "fan": 4, "heat": 5}
+    fan_speeds = {"auto": 1, "low": 2, "medium": 3, "high": 4}
+
+    mode_val = ac_modes.get(mode.lower())
+    if not mode_val:
+        return [TextContent(type="text", text=f"Error: Invalid AC mode '{mode}'. Available: {list(ac_modes.keys())}")]
+    
+    fan_val = fan_speeds.get(fan_speed.lower())
+    if not fan_val:
+        return [TextContent(type="text", text=f"Error: Invalid Fan Speed '{fan_speed}'. Available: {list(fan_speeds.keys())}")]
+
+    payload = {
+        "temperature": temperature,
+        "mode": mode_val,
+        "fan_speed": fan_val,
+        "is_on": is_on
+    }
+
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        try:
+            resp = await client.post(url, json=payload)
+            resp.raise_for_status()
+            data = resp.json() 
+        except httpx.HTTPError as e:
+            return [TextContent(type="text", text=f"Error controlling AC: {e}")]
+            
+    return [
+        TextContent(
+            type="text",
+            text=f"Air Conditioner control command sent. Settings: {payload}. Response: {data}"
+        )
+    ]
+
+@server.tool()
+async def control_humidifier(
+    mode: str,
+    is_on: bool,
+    base_url: Optional[str] = None,
+    timeout_seconds: float = 10.0,
+):
+    """
+    Control the Humidifier.
+    Args:
+        mode (str): One of "auto", "low", "medium", "high".
+        is_on (bool): Power state.
+    """
+    base = (base_url or DEFAULT_BASE_URL).rstrip("/")
+    url = f"{base}/control/humidifier/settings"
+    
+    # Map string mode to Hub 2 expected values?
+    # Sensor-node `HumidifierMode` expects "auto", "101"(low), "102"(medium), "103"(high)
+    
+    h_modes = {
+        "auto": "auto",
+        "low": "101",
+        "medium": "102",
+        "high": "103"
+    }
+    
+    mode_val = h_modes.get(mode.lower())
+    if not mode_val:
+         return [TextContent(type="text", text=f"Error: Invalid Humidifier mode '{mode}'. Available: {list(h_modes.keys())}")]
+
+    payload = {
+        "mode": mode_val,
+        "is_on": is_on
+    }
+
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        try:
+            resp = await client.post(url, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+        except httpx.HTTPError as e:
+            return [TextContent(type="text", text=f"Error controlling Humidifier: {e}")]
+
+    return [
+        TextContent(
+            type="text",
+            text=f"Humidifier control command sent. Settings: {payload} (Mapped Mode: {mode_val}). Response: {data}"
+        )
+    ]
+
 if __name__ == "__main__":
     server.run()
