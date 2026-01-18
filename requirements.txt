@@ -3,3 +3,6 @@ mcp
 httpx
 anyio
 google-cloud-storage
+google-cloud-firestore
+pytz
+python-dotenv

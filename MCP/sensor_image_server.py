@@ -82,7 +82,7 @@ async def capture_image(
             from MCP.uploader import GCSUploader
             uploader = GCSUploader()
             image_bytes = base64.b64decode(b64_data)
-            gcs_uri = uploader.upload_bytes(image_bytes, content_type=mime)
+            gcs_uri = uploader.upload_bytes(image_bytes, content_type=mime, folder="agent-captures")
             sys.stderr.write(f"Uploaded image to {gcs_uri}\n")
         
     except Exception as e:
