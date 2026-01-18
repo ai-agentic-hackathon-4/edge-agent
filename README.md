@@ -23,15 +23,38 @@
 
 ## セットアップ
 
-1. **環境変数の設定**
-   `agent/.env` ファイルを作成し、以下の内容を設定してください。
+3. **Google Cloud 認証情報の準備 (Service Account)**
+   GCSへのアップロードとVertex AIの利用に必要です。
+   
+   1. GCPコンソールでサービスアカウントを作成し、以下のロールを付与します。
+      - **Vertex AI ユーザー** (`roles/aiplatform.user`)
+      - **Storage オブジェクト管理者** (`roles/storage.objectAdmin`) または作成者/閲覧者
+   2. キーを作成（JSON形式）し、ダウンロードします（例: `credentials.json`）。
+   3. `edge-agent/agent/` ディレクトリなどに配置します。
+
+4. **環境変数の設定 (.env)**
+   `agent/.env` ファイルを作成/更新します。
    ```env
-   GOOGLE_API_KEY=your_api_key_here
+   # Vertex AI & General
    GOOGLE_GENAI_USE_VERTEXAI=true
-   SENSOR_MCP_SSE_URL=http://mcp-server:8000/sse  # (Stdioモードでは未使用だが念のため)
+   GOOGLE_CLOUD_PROJECT=your-project-id
+   GOOGLE_CLOUD_REGION=us-central1
+   
+   # Authentication
+   GOOGLE_APPLICATION_CREDENTIALS=/app/agent/credentials.json  # Docker内パス
+   # ローカル実行の場合は絶対パス指定を推奨:
+   # GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/credentials.json
+   
+   # GCS Bucket for Images
+   GCS_BUCKET_NAME=your-bucket-name
+   
+   # Switchbot
+   SWITCHBOT_TOKEN=your_token
+   SWITCHBOT_SECRET=your_secret
+   SWITCHBOT_METER_DEVICE_ID=your_device_id
    ```
 
-2. **Dockerネットワークの作成** (初回のみ)
+5. **Dockerネットワークの作成** (初回のみ)
    ```bash
    docker network create edge-agent-net
    ```
@@ -51,11 +74,13 @@
    # データディレクトリの作成（なければ）
    mkdir -p data
    
-   # 実行（会話履歴は自動保存されます）
+   # 実行
+   # credentials.json が agent ディレクトリにあると仮定
    docker run -i --rm \
      --network edge-agent-net \
      --env-file agent/.env \
      -v $(pwd)/data:/app/data \
+     -v $(pwd)/agent/ai-agentic-hackathon-4-97df01870654.json:/app/agent/ai-agentic-hackathon-4-97df01870654.json \
      edge-agent
    ```
    

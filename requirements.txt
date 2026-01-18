@@ -2,4 +2,4 @@ google-adk
 mcp
 httpx
 anyio
-
+google-cloud-storage

@@ -13,8 +13,16 @@ fi
 # Load environment variables from agent/.env
 export $(grep -v '^#' agent/.env | xargs)
 
+# Override GOOGLE_APPLICATION_CREDENTIALS for local execution if file exists
+if [ -f "agent/ai-agentic-hackathon-4-97df01870654.json" ]; then
+    export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/agent/ai-agentic-hackathon-4-97df01870654.json"
+fi
+
 # Add current directory to PYTHONPATH
 export PYTHONPATH=$PYTHONPATH:.
+
+# Set MCP server path for local execution
+export MCP_SERVER_PATH=$(pwd)/MCP/sensor_image_server.py
 
 echo "Starting Agent with Web UI..."
 echo "Access the UI at http://localhost:8501 (default)"

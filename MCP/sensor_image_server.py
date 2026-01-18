@@ -70,27 +70,34 @@ async def capture_image(
     h = int(payload.get("height", height))
     mime = f"image/{fmt}"
 
-    # Debug: Save captured image to local file if /app/data exists
-    try:
-        debug_dir = pathlib.Path("/app/data/debug_images")
-        if debug_dir.parent.exists():
-            debug_dir.mkdir(exist_ok=True)
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"capture_{timestamp}.{fmt}"
-            filepath = debug_dir / filename
-            
-            with open(filepath, "wb") as f:
-                f.write(base64.b64decode(b64_data))
-            print(f"Debug: Saved captured image to {filepath}")
-    except Exception as e:
-        print(f"Debug: Failed to save image: {e}")
 
-    # Return as TextContent so the model sees the base64 string directly
-    # and can process it according to the system instructions.
+    # Upload to GCS
+    try:
+        # Debug mock
+        if os.environ.get("DEBUG_MOCK_GCS"):
+            gcs_uri = "gs://mock-bucket/mock-image.jpg"
+            print(f"DEBUG: Mocked upload to {gcs_uri}")
+        else:
+            from MCP.uploader import GCSUploader
+            uploader = GCSUploader()
+            image_bytes = base64.b64decode(b64_data)
+            gcs_uri = uploader.upload_bytes(image_bytes, content_type=mime)
+            print(f"Uploaded image to {gcs_uri}")
+        
+    except Exception as e:
+        print(f"Error uploading to GCS: {e}")
+        # Fallback to returning base64 if GCS fails? 
+        # Or better, return error message so user knows GCS failed.
+        # For now, let's append error but still return base64 as fallback or just fail.
+        # User requested REPLACING base64 with GCS URL. So we should probably fail if GCS fails.
+        raise RuntimeError(f"Failed to upload image to GCS: {e}")
+
+    # Return as TextContent with GCS URI
+    # Agent can handle gs:// URIs natively if configured, or just knows it's a file path.
     return [
         TextContent(
             type="text",
-            text=f"Image captured. Metadata: width={w}, height={h}, mime={mime}.\nBase64 Data: {b64_data}"
+            text=f"Image captured and uploaded to {gcs_uri}. Metadata: width={w}, height={h}."
         )
     ]
 
