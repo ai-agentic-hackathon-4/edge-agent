@@ -127,5 +127,27 @@ async def get_meter_data(
         )
     ]
 
+
+@server.tool()
+async def get_soil_moisture(
+    base_url: Optional[str] = None,
+    timeout_seconds: float = 5.0,
+):
+    """Fetch soil moisture data from the sensor API."""
+    base = (base_url or DEFAULT_BASE_URL).rstrip("/")
+    url = f"{base}/sensor/soil"
+    
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        resp = await client.get(url)
+        resp.raise_for_status()
+        payload = resp.json()
+        
+    return [
+        TextContent(
+            type="text",
+            text=f"Soil Moisture: {payload}"
+        )
+    ]
+
 if __name__ == "__main__":
     server.run()
