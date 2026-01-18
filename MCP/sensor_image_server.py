@@ -188,13 +188,16 @@ async def control_air_conditioner(
         "is_on": is_on
     }
 
+    print(f"DEBUG: Sending AC POST to {url} with payload {payload}", file=sys.stderr)
+
     async with httpx.AsyncClient(timeout=timeout_seconds) as client:
         try:
             resp = await client.post(url, json=payload)
+            print(f"DEBUG: AC Response Status: {resp.status_code}", file=sys.stderr)
             resp.raise_for_status()
             data = resp.json() 
         except httpx.HTTPError as e:
-            return [TextContent(type="text", text=f"Error controlling AC: {e}")]
+            return [TextContent(type="text", text=f"Error controlling AC: {e}. URL: {url}")]
             
     return [
         TextContent(
