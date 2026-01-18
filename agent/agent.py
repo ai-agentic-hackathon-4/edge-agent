@@ -68,7 +68,7 @@ def create_agent():
             server_params=StdioServerParameters(
                 command="python",
                 args=[server_script_path],
-                env=None
+                env=os.environ.copy()
             )
         ),
     )
