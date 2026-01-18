@@ -107,10 +107,12 @@ def main():
                 soil_data = fetch_sensor_data(client, "/sensor/soil")
                 
                 # Prepare document
-                timestamp = datetime.now(pytz.timezone('Asia/Tokyo'))
+                now = datetime.now(pytz.timezone('Asia/Tokyo'))
                 
                 doc_data = {
-                    "timestamp": timestamp,
+                    "timestamp": now,
+                    "unix_timestamp": now.timestamp(),
+                    "date": now.strftime("%Y-%m-%d"),
                     "temperature": meter_data.get("temperature"),
                     "humidity": meter_data.get("humidity"),
                     "soil_moisture": soil_data.get("moisture_percent"),
