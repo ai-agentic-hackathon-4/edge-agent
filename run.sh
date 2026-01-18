@@ -29,4 +29,4 @@ echo "Access the UI at http://localhost:8501 (default)"
 
 # Run the agent with UI
 # Assuming google-adk is installed
-adk run --ui agent.agent:root_agent
+adk run agent
