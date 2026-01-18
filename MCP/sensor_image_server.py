@@ -94,7 +94,6 @@ async def capture_image(
         )
     ]
 
-    ]
 
 
 @server.tool()
