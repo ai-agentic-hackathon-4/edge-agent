@@ -22,7 +22,7 @@ class GCSAwareMcpToolset(McpToolset):
             if tool.name == "capture_image":
                 original_run_async = tool.run_async
                 
-                async def gcs_aware_run_async(*, args, tool_context):
+                async def gcs_aware_run_async(self, *, args, tool_context):
                     result = await original_run_async(args=args, tool_context=tool_context)
                     
                     # Intercept output
