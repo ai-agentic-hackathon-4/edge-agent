@@ -62,7 +62,7 @@ async def main():
     current_hour = now.hour
     
     # Define quiet hours (22:00 to 06:00)
-    START_QUIET_HOUR = 24
+    START_QUIET_HOUR = 22
     END_QUIET_HOUR = 6
     
     is_night = False
