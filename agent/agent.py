@@ -122,7 +122,7 @@ def create_agent():
     mcp_toolset = GCSAwareMcpToolset(
         connection_params=StdioConnectionParams(
             server_params=StdioServerParameters(
-                command="python",
+                command=sys.executable,
                 args=[server_script_path],
                 env=os.environ.copy()
             ),
@@ -136,10 +136,9 @@ def create_agent():
     session_db_uri = os.environ.get("SESSION_DB_URI", "sqlite+aiosqlite:////app/data/sessions.db")
     session_service = DatabaseSessionService(db_url=session_db_uri)
     
-    return CustomLlmAgent(
-        name="sensor_gemini_agent",
-        model=MODEL_ID,
-        instruction=(
+
+    # Default instruction
+    default_instruction = (
             "あなたは植物の環境を管理するマルチモーダルアシスタントです。すべての応答は**日本語**で行ってください。"
             "1. まず、`capture_image`を使用して植物の種類を特定してください。"
             "2. **植物の健康状態を診断**: しおれ、変色（黄ばみ/茶色）、害虫、病気の兆候がないか確認し、診断結果を明確に報告してください。"
@@ -155,9 +154,13 @@ def create_agent():
             "常に以下のフォーマットで報告してください："
             "**現在の状態**: [植物のID] -> [健康診断結果] -> [環境データ] -> [デバイス状態]"
             "**推奨アクション**: [実行したアクション / ユーザーへのアドバイス]"
-        ),
-        tools=[mcp_toolset],
-        session_service=session_service
+    )
+
+    return CustomLlmAgent(
+        name="sensor_gemini_agent",
+        model=MODEL_ID,
+        instruction=os.environ.get("AGENT_INSTRUCTION", default_instruction),
+        tools=[mcp_toolset]
     )
 
 root_agent = create_agent()
