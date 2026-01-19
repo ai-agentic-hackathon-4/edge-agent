@@ -55,6 +55,31 @@ from google.adk.runners import Runner
 from google.genai import types
 
 async def main():
+    # --- Night Time Exclusion ---
+    import datetime
+    # Get current time (assuming system time is local)
+    now = datetime.datetime.now()
+    current_hour = now.hour
+    
+    # Define quiet hours (22:00 to 06:00)
+    START_QUIET_HOUR = 24
+    END_QUIET_HOUR = 6
+    
+    is_night = False
+    if START_QUIET_HOUR > END_QUIET_HOUR:
+        # Crosses midnight (e.g. 22 to 6)
+        if current_hour >= START_QUIET_HOUR or current_hour < END_QUIET_HOUR:
+            is_night = True
+    else:
+        # Same day (e.g. 1 to 5)
+        if START_QUIET_HOUR <= current_hour < END_QUIET_HOUR:
+            is_night = True
+            
+    if is_night:
+        print(f"Current time ({now.strftime('%H:%M')}) is within quiet hours ({START_QUIET_HOUR}:00-{END_QUIET_HOUR}:00). Skipping execution.")
+        return
+    # ----------------------------
+
     # Setup Session Service
     data_dir = os.path.join(base_dir, "data")
     os.makedirs(data_dir, exist_ok=True)
