@@ -111,6 +111,8 @@ def custom_build_response_event(
 adk_functions.__build_response_event = custom_build_response_event
 # --- Monkey Patch End ---
 
+from google.adk.sessions.database_session_service import DatabaseSessionService
+
 def create_agent():
     # MCP Toolset の設定 (Stdioモード)
     # MCP_SERVER_PATH 環境変数があればそれを使用し、なければコンテナ内のデフォルトパスを使用
@@ -127,11 +129,16 @@ def create_agent():
             timeout=120.0
         ),
     )
+
+    # Session Service Setup
+    # Use SQLite for persistence. Default to /app/data/sessions.db
+    # Must use async driver: sqlite+aiosqlite
+    session_db_uri = os.environ.get("SESSION_DB_URI", "sqlite+aiosqlite:////app/data/sessions.db")
+    session_service = DatabaseSessionService(db_url=session_db_uri)
     
     return CustomLlmAgent(
         name="sensor_gemini_agent",
         model=MODEL_ID,
-        instruction=(
         instruction=(
             "あなたは植物の環境を管理するマルチモーダルアシスタントです。すべての応答は**日本語**で行ってください。"
             "1. まず、`capture_image`を使用して植物の種類を特定してください。"
@@ -149,7 +156,8 @@ def create_agent():
             "**現在の状態**: [植物のID] -> [健康診断結果] -> [環境データ] -> [デバイス状態]"
             "**推奨アクション**: [実行したアクション / ユーザーへのアドバイス]"
         ),
-        tools=[mcp_toolset]
+        tools=[mcp_toolset],
+        session_service=session_service
     )
 
 root_agent = create_agent()
