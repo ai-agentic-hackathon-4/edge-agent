@@ -142,6 +142,54 @@ async def get_soil_moisture(
     ]
 
 @server.tool()
+async def get_air_conditioner_status(
+    base_url: Optional[str] = None,
+    timeout_seconds: float = 5.0,
+):
+    """Fetch the current status of the Air Conditioner (e.g. power, temp, mode)."""
+    base = (base_url or DEFAULT_BASE_URL).rstrip("/")
+    url = f"{base}/sensor/air-conditioner"
+    
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        try:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            payload = resp.json()
+        except httpx.HTTPError as e:
+            return [TextContent(type="text", text=f"Error fetching AC status: {e}")]
+        
+    return [
+        TextContent(
+            type="text",
+            text=f"Air Conditioner Status: {payload}"
+        )
+    ]
+
+@server.tool()
+async def get_humidifier_status(
+    base_url: Optional[str] = None,
+    timeout_seconds: float = 5.0,
+):
+    """Fetch the current status of the Humidifier (e.g. power, mode, humidity)."""
+    base = (base_url or DEFAULT_BASE_URL).rstrip("/")
+    url = f"{base}/sensor/humidifier"
+    
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        try:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            payload = resp.json()
+        except httpx.HTTPError as e:
+            return [TextContent(type="text", text=f"Error fetching Humidifier status: {e}")]
+        
+    return [
+        TextContent(
+            type="text",
+            text=f"Humidifier Status: {payload}"
+        )
+    ]
+
+@server.tool()
 async def control_air_conditioner(
     temperature: int,
     mode: str,
@@ -253,6 +301,44 @@ async def control_humidifier(
         TextContent(
             type="text",
             text=f"Humidifier control command sent. Settings: {payload} (Mapped Mode: {mode_val}). Response: {data}"
+        )
+    ]
+
+
+@server.tool()
+async def send_discord_notification(
+    message: str,
+    webhook_url: Optional[str] = None,
+    timeout_seconds: float = 10.0,
+):
+    """
+    Send a notification message to Discord.
+    Use this when the plant's condition is URGENT (e.g. dying, severe disease).
+    Args:
+        message (str): The message content to send.
+    """
+    # use DISCORD_WEBHOOK_URL from env or provided argument
+    url = webhook_url or os.environ.get("DISCORD_WEBHOOK_URL")
+    
+    if not url:
+         return [TextContent(type="text", text="Error: No Discord Webhook URL configured.")]
+
+    payload = {
+        "content": message
+    }
+
+
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        try:
+            resp = await client.post(url, json=payload)
+            resp.raise_for_status()
+        except httpx.HTTPError as e:
+            return [TextContent(type="text", text=f"Error sending Discord notification: {e}")]
+
+    return [
+        TextContent(
+            type="text",
+            text=f"Discord notification sent successfully."
         )
     ]
 
