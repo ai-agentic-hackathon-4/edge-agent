@@ -46,22 +46,18 @@ class GCSAwareMcpToolset(McpToolset):
                 
         return tools
 
+from pydantic import ConfigDict, Field, BaseModel, field_validator
 from pydantic import ConfigDict, Field
-from pydantic import ConfigDict, Field
-from typing import List
+from typing import List, Optional
 
 # Vertex AI / Gemini 設定（値は環境変数で上書きしてください）
 # Gemini 3 (2026年時点の最新標準: gemini-3-flash-preview)
 MODEL_ID = "gemini-3-flash-preview"
 
-class CustomLlmAgent(LlmAgent):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    tools: List[Any] = Field(default=[], exclude=True)
-
+# --- Monkey Patch Start ---
 from google.adk.events.event import Event
 import google.adk.flows.llm_flows.functions as adk_functions
 
-# --- Monkey Patch Start ---
 # Patch ADK's __build_response_event to allow returning multimodal Parts from tools.
 # Default ADK implementation forces everything into a JSON dict, which breaks Part objects.
 original_build_response_event = adk_functions.__build_response_event
@@ -113,54 +109,85 @@ adk_functions.__build_response_event = custom_build_response_event
 
 from google.adk.sessions.database_session_service import DatabaseSessionService
 
+class CustomLlmAgent(LlmAgent):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    tools: List[Any] = Field(default=[], exclude=True)
+
+    @field_validator('generate_content_config', mode='after')
+    @classmethod
+    def validate_generate_content_config(
+        cls, generate_content_config: Optional[genai_types.GenerateContentConfig]
+    ) -> genai_types.GenerateContentConfig:
+        # Override parent validator to allow response_schema in generate_content_config
+        # This allows us to use structured output (JSON mode) WHILE also using tools,
+        # which the parent class normally forbids.
+        if not generate_content_config:
+            return genai_types.GenerateContentConfig()
+        return generate_content_config
+
+class AgentOutput(BaseModel):
+    logs: List[str] = Field(description="List of operation logs (e.g., 'Air conditioner set to 25C', 'Checked sensor data')")
+    plant_status: str = Field(description="Current status of the plant (e.g., 'Healthy', 'Wilting', 'Dry')")
+    growth_stage: int = Field(description="Growth stage of the plant from 1 to 5 (1: Sprout, 5: Harvest)")
+    comment: str = Field(description="Message or advice to the user")
+
 def create_agent():
-    # MCP Toolset の設定 (Stdioモード)
+    # MCP Toolset (Stdio mode)
     # MCP_SERVER_PATH 環境変数があればそれを使用し、なければコンテナ内のデフォルトパスを使用
     default_server_path = "/app/MCP/sensor_image_server.py"
     server_script_path = os.environ.get("MCP_SERVER_PATH", default_server_path)
     
+    # Env for subprocess
+    env = os.environ.copy()
+    # Add project root to PYTHONPATH so `from MCP import ...` works
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    env["PYTHONPATH"] = project_root + os.pathsep + env.get("PYTHONPATH", "")
+
     mcp_toolset = GCSAwareMcpToolset(
         connection_params=StdioConnectionParams(
             server_params=StdioServerParameters(
                 command=sys.executable,
                 args=[server_script_path],
-                env=os.environ.copy()
+                env=env
             ),
             timeout=120.0
         ),
     )
 
-    # Session Service Setup
-    # Use SQLite for persistence. Default to /app/data/sessions.db
-    # Must use async driver: sqlite+aiosqlite
-    session_db_uri = os.environ.get("SESSION_DB_URI", "sqlite+aiosqlite:////app/data/sessions.db")
-    session_service = DatabaseSessionService(db_url=session_db_uri)
-    
-
-    # Default instruction
+    # Updated instruction to request JSON format via prompt (since config breaks vision)
     default_instruction = (
             "あなたは植物の環境を管理するマルチモーダルアシスタントです。すべての応答は**日本語**で行ってください。"
-            "1. まず、`capture_image`を使用して植物の種類を特定してください。"
-            "2. **植物の健康状態を診断**: しおれ、変色（黄ばみ/茶色）、害虫、病気の兆候がないか確認し、診断結果を明確に報告してください。"
-            "3. この特定の植物に最適な温度、湿度、土壌水分を決定してください。"
-            "4. `get_meter_data`（温度/湿度）と`get_soil_moisture`（土壌）を使用して、現在の状況を確認してください。"
-            "5. **デバイスの状態確認**: `get_air_conditioner_status` と `get_humidifier_status` を使用して、現在のデバイス設定（電源ON/OFFなど）を確認してください。"
-            "6. 現在の状況、デバイスの状態、および最適な条件を比較してください。"
+            "1. `capture_image`を使用して植物の種類を特定してください。"
+            "2. **植物の健康状態を診断**: しおれ、変色（黄ばみ/茶色）、害虫、病気の兆候がないか確認し、診断結果を『plant_status』に記録してください。"
+            "3. 植物の成長段階（1:発芽〜5:収穫）を推定し、『growth_stage』に整数で記録してください。"
+            "4. この特定の植物に最適な温度、湿度、土壌水分を決定してください。"
+            "5. `get_meter_data`（温度/湿度）と`get_soil_moisture`（土壌）を使用して、現在の状況を確認してください。"
+            "6. **デバイスの状態確認**: `get_air_conditioner_status` と `get_humidifier_status` を使用して、現在のデバイス設定を確認してください。"
             "7. 調整が必要な場合："
-            "   - 空調には`control_air_conditioner`または`control_humidifier`を使用してください。**注意**: すでに適切な設定で稼働している場合は、無駄な操作を避けてください。"
-            "   - 土壌水分が低い場合は、**ユーザーに水やりをするようアドバイス**してください（直接水を制御することはできません）。"
-            "8. **重要**: 植物の状態が**緊急**（重度のしおれ、乾燥、病気、または害虫の蔓延）である場合、`send_discord_notification`を使用してユーザーに直ちに警告してください。"
-            "9. 条件が満たされている場合は、省エネのためにデバイスの電源を切ってください。"
-            "常に以下のフォーマットで報告してください："
-            "**現在の状態**: [植物のID] -> [健康診断結果] -> [環境データ] -> [デバイス状態]"
-            "**推奨アクション**: [実行したアクション / ユーザーへのアドバイス]"
+            "   - 空調には`control_air_conditioner`または`control_humidifier`を使用してください。"
+            "   - 操作を行った場合、その内容を『logs』リストに追加してください（例: 'エアコンを25度に設定しました'）。"
+            "   - 土壌水分が低い場合は、**ユーザーに水やりをするようアドバイス**してください。"
+            "8. 植物の状態が**緊急**である場合、`send_discord_notification`を使用して警告し、その旨を『logs』に記録してください。"
+            "9. ユーザーへの総合的なアドバイスやコメントを『comment』フィールドに記述してください。"
+            "\n"
+            "**出力フォーマット**:\n"
+            "以下のJSONスキーマに従って、**JSONオブジェクトのみ**を出力してください。Markdownコードブロック（```json ... ```）は使用しないでください。\n"
+            "{\n"
+            "  \"logs\": [\"ログメッセージ1\", \"ログメッセージ2\"],\n"
+            "  \"plant_status\": \"健康状態の説明\",\n"
+            "  \"growth_stage\": 3,\n"
+            "  \"comment\": \"ユーザーへのメッセージ\"\n"
+            "}"
     )
 
-    return CustomLlmAgent(
+    return LlmAgent(
         name="sensor_gemini_agent",
         model=MODEL_ID,
         instruction=os.environ.get("AGENT_INSTRUCTION", default_instruction),
-        tools=[mcp_toolset]
+        tools=[mcp_toolset],
+        generate_content_config=genai_types.GenerateContentConfig(
+            response_mime_type="application/json"
+        )
     )
 
 root_agent = create_agent()

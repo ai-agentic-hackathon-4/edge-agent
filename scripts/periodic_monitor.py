@@ -104,6 +104,8 @@ async def main():
     
     print(f"Starting agent run for session {session_id}...")
     
+    agent_response_text = ""
+    
     try:
         async for event in runner.run_async(
             user_id=user_id,
@@ -115,11 +117,64 @@ async def main():
                 for part in event.content.parts:
                     if part.text:
                         print(f"[Agent]: {part.text}")
+                        agent_response_text += part.text
             
             # Debug: print logic for function calls if needed
             # if event.get_function_calls():
             #    print(f"[Tool Call]: {event.get_function_calls()}")
+        
+        # Parse JSON and Save to Firestore
+        import json
+        import datetime
+        from google.cloud import firestore
+        
+        # Strip markdown code blocks if present (just in case)
+        clean_text = agent_response_text.strip()
+        if clean_text.startswith("```json"):
+            clean_text = clean_text[7:]
+        if clean_text.endswith("```"):
+            clean_text = clean_text[:-3]
+        clean_text = clean_text.strip()
+        
+        try:
+            structured_data = json.loads(clean_text)
+            print("Successfully parsed agent JSON output.")
             
+            # Add timestamp
+            now = datetime.datetime.now(datetime.timezone.utc)
+            
+            final_data = {}
+            if isinstance(structured_data, list):
+                if len(structured_data) > 0 and isinstance(structured_data[0], dict):
+                    # Assume the first item is the main output if it looks like one
+                    print("Agent output was a list, using first item.")
+                    final_data = structured_data[0]
+                else:
+                    # Wrap it
+                    print("Agent output was a raw list, wrapping.")
+                    final_data = {"data": structured_data}
+            elif isinstance(structured_data, dict):
+                final_data = structured_data
+            else:
+                final_data = {"raw_output": structured_data}
+            
+            final_data["timestamp"] = now
+            
+            # Save to Firestore
+            if "GOOGLE_APPLICATION_CREDENTIALS" in os.environ:
+                 db = firestore.Client(database="ai-agentic-hackathon-4-db")
+                 # Use timestamp as document ID for easy sorting/finding
+                 doc_id = now.isoformat()
+                 db.collection("agent_execution_logs").document(doc_id).set(final_data)
+                 print(f"Saved execution log to Firestore: agent_execution_logs/{doc_id}")
+            else:
+                print("Skipping Firestore save: Credentials not set.")
+                
+        except json.JSONDecodeError:
+            print(f"Error: Failed to parse agent response as JSON. Raw text:\n{agent_response_text}")
+        except Exception as e:
+            print(f"Error saving to Firestore: {e}")
+
     except Exception as e:
         print(f"Error executing agent: {e}")
         import traceback
