@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import threading
 from collections import deque
 from datetime import date, datetime
 from http import HTTPStatus
@@ -18,11 +19,14 @@ ALLOWED_KEYS = [
     "GCS_BUCKET_NAME",
     "GOOGLE_CLOUD_PROJECT",
     "GOOGLE_CLOUD_REGION",
+    "GOOGLE_GENAI_USE_VERTEXAI",
+    "GOOGLE_APPLICATION_CREDENTIALS",
     "MCP_SERVER_PATH",
     "AGENT_INSTRUCTION",
 ]
 MAX_LOG_LINES = 200
 MAX_BODY_BYTES = 100_000
+ENV_LOCK = threading.Lock()
 
 
 def tail_lines(path: Path, max_lines: int) -> list[str]:
@@ -40,7 +44,9 @@ def read_env_settings(path: Path) -> dict[str, str]:
     settings: dict[str, str] = {}
     if not path.exists():
         return settings
-    for line in path.read_text(encoding="utf-8").splitlines():
+    with ENV_LOCK:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    for line in lines:
         stripped = line.strip()
         if not stripped or stripped.startswith("#") or "=" not in stripped:
             continue
@@ -59,32 +65,33 @@ def update_env_settings(path: Path, updates: dict[str, str]) -> None:
         for key, value in updates.items()
         if key in ALLOWED_KEYS
     }
-    lines = []
-    if path.exists():
-        lines = path.read_text(encoding="utf-8").splitlines()
-    remaining = dict(filtered_updates)
-    new_lines = []
-    for line in lines:
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#") or "=" not in stripped:
-            new_lines.append(line)
-            continue
-        key, _ = stripped.split("=", 1)
-        if not key:
-            new_lines.append(line)
-            continue
-        key = key.strip()
-        if key in remaining:
-            new_lines.append(f"{key}={remaining.pop(key)}")
-        else:
-            new_lines.append(line)
-    for key, value in remaining.items():
-        new_lines.append(f"{key}={value}")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    content = "\n".join(new_lines)
-    if content:
-        content += "\n"
-    path.write_text(content, encoding="utf-8")
+    with ENV_LOCK:
+        lines = []
+        if path.exists():
+            lines = path.read_text(encoding="utf-8").splitlines()
+        remaining = dict(filtered_updates)
+        new_lines = []
+        for line in lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+                new_lines.append(line)
+                continue
+            key, _ = stripped.split("=", 1)
+            if not key:
+                new_lines.append(line)
+                continue
+            key = key.strip()
+            if key in remaining:
+                new_lines.append(f"{key}={remaining.pop(key)}")
+            else:
+                new_lines.append(line)
+        for key, value in remaining.items():
+            new_lines.append(f"{key}={value}")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        content = "\n".join(new_lines)
+        if content:
+            content += "\n"
+        path.write_text(content, encoding="utf-8")
 
 
 def make_json_safe(value) -> object:
@@ -173,45 +180,76 @@ HTML_PAGE = """<!doctype html>
       }
 
       async function loadSettings() {
-        const response = await fetch("/api/settings");
-        const data = await response.json();
-        renderSettings(data.settings || {});
+        const status = document.getElementById("settings-status");
+        status.textContent = "";
+        try {
+          const response = await fetch("/api/settings");
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          const data = await response.json();
+          renderSettings(data.settings || {});
+        } catch (error) {
+          status.textContent = `エラー: ${error}`;
+        }
       }
 
       async function saveSettings() {
         const payload = {};
+        const status = document.getElementById("settings-status");
+        status.textContent = "";
         allowedKeys.forEach((key) => {
           payload[key] = document.getElementById(`setting-${key}`).value || "";
         });
-        const response = await fetch("/api/settings", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        const data = await response.json();
-        document.getElementById("settings-status").textContent =
-          data.error ? `エラー: ${data.error}` : "保存しました";
+        try {
+          const response = await fetch("/api/settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const data = await response.json();
+          if (!response.ok || data.error) {
+            throw new Error(data.error || `HTTP ${response.status}`);
+          }
+          status.textContent = "保存しました";
+        } catch (error) {
+          status.textContent = `エラー: ${error}`;
+        }
       }
 
       async function loadLogs() {
-        const response = await fetch("/api/logs");
-        const data = await response.json();
         const target = document.getElementById("sensor-logs");
-        if (data.error) {
-          target.textContent = data.error;
-        } else {
-          target.textContent = (data.lines || []).join("");
+        try {
+          const response = await fetch("/api/logs");
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          const data = await response.json();
+          if (data.error) {
+            target.textContent = data.error;
+          } else {
+            target.textContent = (data.lines || []).join("");
+          }
+        } catch (error) {
+          target.textContent = `取得エラー: ${error}`;
         }
       }
 
       async function loadFirestore() {
-        const response = await fetch("/api/firestore");
-        const data = await response.json();
         const target = document.getElementById("firestore-logs");
-        if (data.error) {
-          target.textContent = data.error;
-        } else {
-          target.textContent = JSON.stringify(data.entries || [], null, 2);
+        try {
+          const response = await fetch("/api/firestore");
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          const data = await response.json();
+          if (data.error) {
+            target.textContent = data.error;
+          } else {
+            target.textContent = JSON.stringify(data.entries || [], null, 2);
+          }
+        } catch (error) {
+          target.textContent = `取得エラー: ${error}`;
         }
       }
 
@@ -246,6 +284,9 @@ class RequestHandler(BaseHTTPRequestHandler):
         if parsed.path != "/api/settings":
             self.send_error(HTTPStatus.NOT_FOUND, "Not Found")
             return
+        if not self._is_local_origin():
+            self._send_json({"error": "Invalid origin."}, status=HTTPStatus.FORBIDDEN)
+            return
         try:
             length = int(self.headers.get("Content-Length", "0"))
         except ValueError:
@@ -263,6 +304,9 @@ class RequestHandler(BaseHTTPRequestHandler):
             payload = json.loads(body) if body else {}
         except json.JSONDecodeError as exc:
             self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+            return
+        if not isinstance(payload, dict):
+            self._send_json({"error": "リクエスト本文はJSONオブジェクトである必要があります。"}, status=HTTPStatus.BAD_REQUEST)
             return
         try:
             update_env_settings(ENV_PATH, payload)
@@ -295,6 +339,14 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(encoded)
 
+    def _is_local_origin(self) -> bool:
+        origin = self.headers.get("Origin") or self.headers.get("Referer")
+        if not origin:
+            return True
+        parsed = urlparse(origin)
+        host = parsed.hostname
+        return host in {"localhost", "127.0.0.1"}
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Local web UI for logs/settings.")
@@ -302,13 +354,14 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8001)
     args = parser.parse_args()
 
-    server = ThreadingHTTPServer((args.host, args.port), RequestHandler)
     if args.host not in {"127.0.0.1", "localhost"}:
         raise SystemExit("Refusing to bind to non-localhost address.")
+    server = ThreadingHTTPServer((args.host, args.port), RequestHandler)
     print(f"Serving on http://{args.host}:{args.port}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
+        # Allow clean shutdown on Ctrl+C without printing a traceback.
         pass
 
 
