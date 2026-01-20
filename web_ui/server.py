@@ -124,10 +124,10 @@ def fetch_firestore_logs(limit: int = 20) -> dict:
 
 
 HTML_PAGE = """<!doctype html>
-<html lang="en">
+<html lang="ja">
   <head>
     <meta charset="utf-8" />
-    <title>Edge Agent Logs & Settings</title>
+    <title>Edge Agent ログと設定</title>
     <style>
       body { font-family: Arial, sans-serif; margin: 20px; }
       pre { background: #f5f5f5; padding: 12px; white-space: pre-wrap; }
@@ -137,21 +137,21 @@ HTML_PAGE = """<!doctype html>
     </style>
   </head>
   <body>
-    <h1>Edge Agent Logs & Settings</h1>
+    <h1>Edge Agent ログと設定</h1>
     <section>
-      <h2>Sensor Logger Logs</h2>
-      <button onclick="loadLogs()">Refresh Logs</button>
-      <pre id="sensor-logs">Loading...</pre>
+      <h2>センサーロガーのログ</h2>
+      <button onclick="loadLogs()">ログを更新</button>
+      <pre id="sensor-logs">読み込み中...</pre>
     </section>
     <section>
-      <h2>Firestore agent_execution_logs (optional)</h2>
-      <button onclick="loadFirestore()">Refresh Firestore Logs</button>
-      <pre id="firestore-logs">Loading...</pre>
+      <h2>Firestore agent_execution_logs（任意）</h2>
+      <button onclick="loadFirestore()">Firestoreログを更新</button>
+      <pre id="firestore-logs">読み込み中...</pre>
     </section>
     <section>
-      <h2>Settings</h2>
+      <h2>設定</h2>
       <div id="settings-form"></div>
-      <button onclick="saveSettings()">Save Settings</button>
+      <button onclick="saveSettings()">設定を保存</button>
       <div id="settings-status"></div>
     </section>
     <script>
@@ -190,7 +190,7 @@ HTML_PAGE = """<!doctype html>
         });
         const data = await response.json();
         document.getElementById("settings-status").textContent =
-          data.error ? `Error: ${data.error}` : "Saved";
+          data.error ? `エラー: ${data.error}` : "保存しました";
       }
 
       async function loadLogs() {
