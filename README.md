@@ -166,6 +166,16 @@ python3 scripts/verify_gcs_mocked.py
   - `SENSOR_API_BASE`
 - Firestore データベース: `ai-agentic-hackathon-4-db`
 
+## ローカルログ/設定Web UI
+
+センサーログと `.env` の設定を確認・編集するための簡易UIです。
+
+```bash
+python3 web_ui/server.py
+```
+
+ブラウザで `http://127.0.0.1:8001` にアクセスしてください。
+
 ## トラブルシューティング
 
 - **404 Publisher Model Not Found**:
