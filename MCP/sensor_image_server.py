@@ -420,9 +420,10 @@ async def calculate_vpd(
     vpd = (svp - vp) / 10.0
     
     # 判定ロジック（ラディッシュ・葉物野菜向け）
-    if vpd < 0.5:
+    # 理想ゾーン: 0.8 〜 1.2 kPa
+    if vpd < 0.8:
         status = "多湿 (Wet) -> 除湿/送風が必要"
-    elif vpd > 1.5:
+    elif vpd > 1.2:
         status = "乾燥 (Dry) -> 加湿が必要"
     else:
         status = "適正 (Good) -> 維持"
