@@ -142,6 +142,27 @@ async def get_soil_moisture(
     ]
 
 @server.tool()
+async def get_bh1750_data(
+    base_url: Optional[str] = None,
+    timeout_seconds: float = 5.0,
+):
+    """Fetch lux data from the BH1750 sensor."""
+    base = (base_url or DEFAULT_BASE_URL).rstrip("/")
+    url = f"{base}/sensor/bh1750"
+    
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        resp = await client.get(url)
+        resp.raise_for_status()
+        payload = resp.json()
+        
+    return [
+        TextContent(
+            type="text",
+            text=f"Lux Sensor Data: {payload}"
+        )
+    ]
+
+@server.tool()
 async def get_air_conditioner_status(
     base_url: Optional[str] = None,
     timeout_seconds: float = 5.0,

@@ -118,6 +118,7 @@ def main():
                 # Fetch data
                 meter_data = fetch_sensor_data(client, "/sensor/meter")
                 soil_data = fetch_sensor_data(client, "/sensor/soil")
+                bh1750_data = fetch_sensor_data(client, "/sensor/bh1750")
                 
                 # Prepare document
                 now = datetime.now(pytz.timezone('Asia/Tokyo'))
@@ -129,10 +130,12 @@ def main():
                     "temperature": meter_data.get("temperature"),
                     "humidity": meter_data.get("humidity"),
                     "soil_moisture": soil_data.get("moisture_percent"),
+                    "illuminance": bh1750_data.get("lux"),
                     "soil_raw": soil_data.get("raw_value"),
                     "raw_data": {
                         "meter": meter_data,
-                        "soil": soil_data
+                        "soil": soil_data,
+                        "bh1750": bh1750_data
                     }
                 }
 
@@ -147,7 +150,7 @@ def main():
                 # Write to Firestore
                 db.collection(FIRESTORE_COLLECTION).add(doc_data)
                 
-                log_msg = f"Logged data: Temp={doc_data.get('temperature')}, Hum={doc_data.get('humidity')}, Soil={doc_data.get('soil_moisture')}%"
+                log_msg = f"Logged data: Temp={doc_data.get('temperature')}, Hum={doc_data.get('humidity')}, Soil={doc_data.get('soil_moisture')}%, Lux={doc_data.get('illuminance')}"
                 if "image_uri" in doc_data:
                     log_msg += f", Image={doc_data['image_uri']}"
                 logger.info(log_msg)
