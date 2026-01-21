@@ -327,6 +327,40 @@ async def control_humidifier(
 
 
 @server.tool()
+async def control_pump(
+    volume_ml: float = 50.0,
+    base_url: Optional[str] = None,
+    timeout_seconds: float = 10.0,
+):
+    """
+    Control the Water Pump to water the plant.
+    Args:
+        volume_ml (float): Amount of water in milliliters. Default 50ml.
+    """
+    base = (base_url or DEFAULT_BASE_URL).rstrip("/")
+    url = f"{base}/control/pump"
+    
+    payload = {
+        "volume_ml": volume_ml
+    }
+
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        try:
+            resp = await client.post(url, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+        except httpx.HTTPError as e:
+            return [TextContent(type="text", text=f"Error controlling Pump: {e}")]
+    
+    return [
+        TextContent(
+            type="text",
+            text=f"Pump control command sent. Volume: {volume_ml}ml. Response: {data}"
+        )
+    ]
+
+
+@server.tool()
 async def send_discord_notification(
     message: str,
     webhook_url: Optional[str] = None,
