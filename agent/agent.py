@@ -161,7 +161,7 @@ def create_agent():
             "2. **植物の健康状態を診断**: しおれ、変色（黄ばみ/茶色）、害虫、病気の兆候がないか確認し、診断結果を『plant_status』に記録してください。"
             "3. 植物の成長段階（1:発芽〜5:収穫）を推定し、『growth_stage』に整数で記録してください。"
             "4. この特定の植物に最適な温度、湿度、土壌水分、照度を決定してください。"
-            "5. `get_meter_data`（温度/湿度）、`get_soil_moisture`（土壌）、`get_bh1750_data`（照度）を使用して、現在の状況を確認してください。"
+            "5. `get_meter_data`（温度/湿度）、`get_soil_moisture`（土壌）、`get_bh1750_data`（照度）を使用して、現在の状況を確認してください。また、`get_meter_data`で得た温度と湿度を用いて`calculate_vpd`を実行し、飽差(VPD)を確認してください。"
             "6. **デバイスの状態確認**: `get_air_conditioner_status` と `get_humidifier_status` を使用して、現在のデバイス設定を確認してください。"
             "7. 調整が必要な場合："
             "   - 空調には`control_air_conditioner`または`control_humidifier`を使用してください。"

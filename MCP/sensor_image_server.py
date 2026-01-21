@@ -397,5 +397,42 @@ async def send_discord_notification(
         )
     ]
 
+@server.tool()
+async def calculate_vpd(
+    temp: float,
+    hum: float,
+):
+    """
+    気温(T)と湿度(RH)からVPD(飽差)を計算する関数
+    :param temp: 気温 (摂氏)
+    :param hum: 相対湿度 (%)
+    """
+    
+    # 1. 飽和水蒸気圧 (SVP) を計算 (Tetensの式)
+    # 温度Tの空気が限界まで持てる水分量 (hPa)
+    svp = 6.1078 * 10 ** ((7.5 * temp) / (temp + 237.3))
+    
+    # 2. 実際の水蒸気圧 (VP) を計算
+    # 今の空気中に実際にある水分量 (hPa)
+    vp = svp * (hum / 100.0)
+    
+    # 3. 飽差 (VPD) = 飽和 - 実測 (hPa -> kPaに変換するために10で割る)
+    vpd = (svp - vp) / 10.0
+    
+    # 判定ロジック（ラディッシュ・葉物野菜向け）
+    if vpd < 0.5:
+        status = "多湿 (Wet) -> 除湿/送風が必要"
+    elif vpd > 1.5:
+        status = "乾燥 (Dry) -> 加湿が必要"
+    else:
+        status = "適正 (Good) -> 維持"
+
+    return [
+        TextContent(
+            type="text",
+            text=f"VPD: {vpd:.2f} kPa, 判定: {status}"
+        )
+    ]
+
 if __name__ == "__main__":
     server.run()
