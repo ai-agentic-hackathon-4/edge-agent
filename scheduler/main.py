@@ -44,14 +44,7 @@ def run_job():
             log(f"Error creating session: {resp.status_code} {resp.text}")
             return
             
-        session_id = resp.json().get("session_id") # Adjust if key is different based on ADK version
-        # Some ADK versions return the object directly
-        # Let's inspect response in real implementation or be robust.
-        # Assuming ADK default response.
-        
-        # Actually, ADK 0.3+ (implied) might just use /agent/invoke if no session management needed?
-        # But let's assume session-based for conversation history.
-        # If response doesn't have session_id, maybe it's the ID itself?
+        session_id = resp.json().get("id")
         
         log(f"Created session: {session_id} (Response: {resp.json()})")
         if not session_id:
