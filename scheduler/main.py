@@ -25,42 +25,53 @@ def is_quiet_time():
     else:
         return START_QUIET_HOUR <= hour < END_QUIET_HOUR
 
+# State
+CURRENT_SESSION_ID = None
+
 def run_job():
+    global CURRENT_SESSION_ID
+
     if is_quiet_time():
         log(f"Skipping execution: Quiet time ({START_QUIET_HOUR}:00 - {END_QUIET_HOUR}:00)")
         return
 
     log("Starting periodic monitoring job...")
     
-    # 1. Create/Get Session (Agent API usually needs a session to track context, or we can use stateless?)
-    # The ADK API usually exposes POST /agent/sessions to create a session
-    # Then POST /agent/sessions/{session_id}/turns to invoke.
-    
-    try:
-        # Create session
-        session_url = f"{AGENT_API_URL}/apps/agent/users/default/sessions"
-        resp = requests.post(session_url, json={})
-        if resp.status_code != 200:
-            log(f"Error creating session: {resp.status_code} {resp.text}")
-            return
+    # 1. Create/Get Session if not exists
+    if not CURRENT_SESSION_ID:
+        try:
+            # Create session
+            session_url = f"{AGENT_API_URL}/apps/agent/users/default/sessions"
+            resp = requests.post(session_url, json={})
+            if resp.status_code != 200:
+                log(f"Error creating session: {resp.status_code} {resp.text}")
+                return
+                
+            session_id = resp.json().get("id")
             
-        session_id = resp.json().get("id")
-        
-        log(f"Created session: {session_id} (Response: {resp.json()})")
-        if not session_id:
-             # Fallback if response structure is different
-             session_id = resp.json().get("name", "").split("/")[-1] # if resource name
+            log(f"Created session: {session_id} (Response: {resp.json()})")
+            if not session_id:
+                 # Fallback if response structure is different
+                 session_id = resp.json().get("name", "").split("/")[-1] # if resource name
 
-        if not session_id:
-            log("Could not extract session_id.")
+            if not session_id:
+                log("Could not extract session_id.")
+                return
+            
+            CURRENT_SESSION_ID = session_id
+        except Exception as e:
+            log(f"Exception during session creation: {e}")
             return
+    else:
+        log(f"Reusing session: {CURRENT_SESSION_ID}")
 
-        # 2. Run Agent
+    # 2. Run Agent
+    try:
         run_url = f"{AGENT_API_URL}/run"
         payload = {
             "app_name": "agent",
             "user_id": "default",
-            "session_id": session_id,
+            "session_id": CURRENT_SESSION_ID,
             "new_message": {
                 "parts": [
                     {"text": PROMPT_MESSAGE}
@@ -132,7 +143,7 @@ def run_job():
                     # Add metadata
                     log_entry = {
                         "timestamp": datetime.datetime.now(datetime.timezone.utc),
-                        "session_id": session_id,
+                        "session_id": CURRENT_SESSION_ID,
                         "data": structured_data
                     }
 
@@ -148,6 +159,9 @@ def run_job():
                 log(f"Error saving to Firestore: {e}")
             # -------------------------
 
+        elif resp.status_code == 404:
+            log(f"Session not found (404). Resetting session ID.")
+            CURRENT_SESSION_ID = None
         else:
             log(f"Job failed: {resp.status_code} {resp.text}")
 
