@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  agent:
+    build: .
+    container_name: edge-agent
+    restart: always
+    ports:
+      - "8080:8080"
+    env_file:
+      - agent/.env
+    volumes:
+      - ./data:/app/data
+      - ./agent/ai-agentic-hackathon-4-97df01870654.json:/app/agent/ai-agentic-hackathon-4-97df01870654.json
+    networks:
+      - edge-agent-net
+
+  scheduler:
+    build: ./scheduler
+    container_name: edge-agent-scheduler
+    restart: always
+    depends_on:
+      - agent
+    environment:
+      - AGENT_API_URL=http://agent:8080
+      - INTERVAL_MINUTES=30
+      - START_QUIET_HOUR=22
+      - END_QUIET_HOUR=7
+      - TZ=Asia/Tokyo
+    networks:
+      - edge-agent-net
+
+networks:
+  edge-agent-net:
+    external: true

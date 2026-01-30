@@ -76,24 +76,58 @@
    docker network create edge-agent-net
    ```
 
-## ビルドと実行
+## ビルドと実行 (Docker Compose) - 推奨
+
+`docker-compose` を使用すると、Agent APIサーバーと定期実行スケジューラーをまとめて起動できます。
+
+1. **起動**
+   ```bash
+   docker-compose up -d --build
+   ```
+
+   - **Agent API**: `http://localhost:8080` でアクセス可能。
+   - **Scheduler**: バックグラウンドで30分ごとにAgentを実行。
+
+2. **ログ確認**
+   ```bash
+   docker-compose logs -f
+   ```
+
+3. **停止**
+   ```bash
+   docker-compose down
+   ```
+
+## スケジューラー設定
+
+`docker-compose.yml` の環境変数で動作を変更できます。
+
+- `INTERVAL_MINUTES`: 実行間隔（分）。デフォルト: `30`
+- `START_QUIET_HOUR`: 静止時間の開始時（24時間表記）。デフォルト: `22` (22:00)
+- `END_QUIET_HOUR`: 静止時間の終了時（24時間表記）。デフォルト: `7` (07:00)
+
+静止時間中は実行がスキップされます。
+
+## 単体実行 (Docker)
+
+APIサーバーのみを単独で起動する場合:
 
 1. **Dockerイメージのビルド**
-   `edge-agent` ディレクトリ内で実行します。
    ```bash
    docker build -t edge-agent .
    ```
 
 2. **エージェントの実行**
-   以下のコマンドで実行します。`edge-agent/data` ディレクトリがホストに作成され、会話履歴 (`sessions.db`) が自動的に保存されます。
+   DockerコンテナはAPIサーバーとして起動します (`adk api_server`)。
    
    ```bash
    # データディレクトリの作成（なければ）
    mkdir -p data
    
    # 実行
-   # credentials.json が agent ディレクトリにあると仮定
-   docker run -i --rm \
+   # ポート8080をホストにマッピングします
+   docker run -d --rm \
+     -p 8080:8080 \
      --network edge-agent-net \
      --env-file agent/.env \
      -v $(pwd)/data:/app/data \
@@ -101,30 +135,23 @@
      edge-agent
    ```
    
-   終了後も `.db` ファイルが残るため、次回起動時に前回の会話の続きから再開できます。
+   起動後、APIドキュメント (Swagger UI) にアクセスできます:
+   http://localhost:8080/docs
    
-   起動後、プロンプトに以下のように入力してください：
-   ```
-   capture image
-   ```
-   または
-   ```
-   今の部屋の温度は？
-   ```
+   またはAPIエンドポイントを直接利用できます:
+   `POST /agent/sessions` 等
 
-3. **簡易実行（Web UI）**
-   Dockerを使わず、ローカル環境でエージェントを実行する場合のスクリプトです。
-   ※ `requirements.txt` のインストールが必要です。
-   
-   ```bash
-   # 依存関係のインストール
-   pip install -r requirements.txt
-   
-   # エージェント起動（Web UI）
-   ./run.sh
-   ```
-   
-   起動後、ADKのデフォルトUIが利用可能になります。
+## 簡易実行（Web UI）
+
+APIモードではなく、StreamlitベースのWeb UI (ADKデフォルト) でローカル実行する場合：
+
+```bash
+# 依存関係のインストール
+pip install -r requirements.txt
+
+# Web UI起動 (run.shではなく直接コマンド)
+adk run agent
+```
 
 ## 動作確認 (Verification)
 
@@ -223,12 +250,16 @@ MCPサーバーは、エージェント起動時にサブプロセスとして�
 
 ## ファイル構成
 
-- **Dockerfile**: エージェント実行環境の定義
+- **Dockerfile**: エージェント実行環境の定義 (API Server Mode)
+- **docker-compose.yml**: エージェント(API)とスケジューラーの構成
 - **requirements.txt**: Python依存関係（ルートレベル）
-- **run.sh**: ローカル実行用スクリプト（Web UI起動）
+- **run.sh**: APIサーバー起動用スクリプト
 - **agent/**
   - `agent.py`: エージェント本体（Gemini 3 + MCP Toolset + GCS統合）
   - `README.md`: エージェント詳細ドキュメント
+- **scheduler/**
+  - `main.py`: 定期実行スクリプト
+  - `Dockerfile`: スケジューラーコンテナ定義
 - **MCP/**
   - `sensor_image_server.py`: 5つのツールを提供するMCPサーバー
   - `uploader.py`: GCSアップロード機能

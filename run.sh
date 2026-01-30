@@ -24,9 +24,13 @@ export PYTHONPATH=$PYTHONPATH:.
 # Set MCP server path for local execution
 export MCP_SERVER_PATH=$(pwd)/MCP/sensor_image_server.py
 
-echo "Starting Agent with Web UI..."
-echo "Access the UI at http://localhost:8501 (default)"
+# Check for local venv ADK
+if [ -f "env/bin/adk" ]; then
+    ADK_CMD="./env/bin/adk"
+else
+    ADK_CMD="adk"
+fi
 
-# Run the agent with UI
-# Assuming google-adk is installed
-adk run agent
+echo "Starting Agent as API Server..."
+# Run the agent as API
+$ADK_CMD api_server agent
