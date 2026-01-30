@@ -38,7 +38,7 @@ def run_job():
     
     try:
         # Create session
-        session_url = f"{AGENT_API_URL}/agent/sessions"
+        session_url = f"{AGENT_API_URL}/sessions"
         resp = requests.post(session_url, json={})
         if resp.status_code != 200:
             log(f"Error creating session: {resp.status_code} {resp.text}")
@@ -63,7 +63,7 @@ def run_job():
             return
 
         # 2. Send Prompt
-        turn_url = f"{AGENT_API_URL}/agent/sessions/{session_id}/turns"
+        turn_url = f"{AGENT_API_URL}/sessions/{session_id}/turns"
         payload = {
             "queries": [
                 {"text": PROMPT_MESSAGE}

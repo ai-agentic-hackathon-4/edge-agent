@@ -19,20 +19,20 @@
 ```mermaid
 graph TD
     subgraph "Docker Compose (Edge Agent)"
-        Scheduler[Scheduler Container<br>Checking every 30m]
-        Agent[Agent API Container<br>Gemini 3 + MCP Client]
-        WebUI[Web UI Container<br>Dashboard]
+        Scheduler["Scheduler Container<br>Checking every 30m"]
+        Agent["Agent API Container<br>Gemini 3 + MCP Client"]
+        WebUI["Web UI Container<br>Dashboard"]
     end
 
     subgraph "Edge Device (Raspberry Pi)"
-        SensorNode[Sensor Node API<br>FastAPI + SwitchBot/Sensors]
-        Logs[Local Logs]
+        SensorNode["Sensor Node API<br>FastAPI + SwitchBot/Sensors"]
+        Logs["Local Logs"]
     end
 
     subgraph "Google Cloud"
-        VertexAI[Vertex AI<br>Gemini 3 Flash]
-        GCS[Cloud Storage<br>Images]
-        Firestore[Firestore<br>Execution Logs]
+        VertexAI["Vertex AI<br>Gemini 3 Flash"]
+        GCS["Cloud Storage<br>Images"]
+        Firestore["Firestore<br>Execution Logs"]
     end
 
     Scheduler -- Trigger/Prompt --> Agent
