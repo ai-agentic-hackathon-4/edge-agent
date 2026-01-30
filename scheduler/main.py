@@ -75,10 +75,77 @@ def run_job():
         
         if resp.status_code == 200:
             log("Job completed successfully.")
-            # Optional: Print agent response summary
             data = resp.json()
-            # Try to find text response
             log(f"Agent Response: {data}")
+
+            # --- Firestore Logging ---
+            try:
+                from google.cloud import firestore
+                import json
+                
+                # Check authentication
+                if "GOOGLE_APPLICATION_CREDENTIALS" in os.environ or "GOOGLE_CLOUD_PROJECT" in os.environ:
+                    # Initialize DB (assumes project ID from env or default)
+                    # For local emulator or if project ID is implicit
+                    project_id = os.environ.get("GOOGLE_CLOUD_PROJECT")
+                    if project_id:
+                        db = firestore.Client(project=project_id, database="ai-agentic-hackathon-4-db")
+                    else:
+                        db = firestore.Client(database="ai-agentic-hackathon-4-db")
+
+                    # Extract the actual agent message.
+                    # ADK response structure: { "steps": [ { "content": { "parts": [ { "text": "JSON_STRING" } ] } } ] }
+                    # Or simple output if simplified.
+                    # We need to parse the JSON string embedded in the response text if using structured output mode.
+                    
+                    # Assuming data is the JSON body of the response.
+                    # We need to find the text part.
+                    agent_text = ""
+                    # Simple heuristic traversal
+                    if "steps" in data:
+                        for step in data["steps"]:
+                            if "content" in step and "parts" in step["content"]:
+                                for part in step["content"]["parts"]:
+                                    if "text" in part:
+                                        agent_text += part["text"]
+
+                    if not agent_text:
+                        # Fallback: maybe directly in response if different format
+                        agent_text = json.dumps(data)
+
+                    # Try to parse agent_text as JSON (since we requested JSON mode)
+                    clean_text = agent_text.strip()
+                    if clean_text.startswith("```json"):
+                        clean_text = clean_text[7:]
+                    if clean_text.endswith("```"):
+                        clean_text = clean_text[:-3]
+                    clean_text = clean_text.strip()
+                    
+                    try:
+                        structured_data = json.loads(clean_text)
+                    except json.JSONDecodeError:
+                        # If not JSON, save as raw text wrapped in dict
+                        structured_data = {"raw_output": agent_text}
+
+                    # Add metadata
+                    log_entry = {
+                        "timestamp": datetime.datetime.now(datetime.timezone.utc),
+                        "session_id": session_id,
+                        "data": structured_data
+                    }
+
+                    # Save to Firestore
+                    doc_ref = db.collection("agent_execution_logs").document()
+                    doc_ref.set(log_entry)
+                    log(f"Saved execution log to Firestore (ID: {doc_ref.id})")
+                
+                else:
+                    log("Skipping Firestore save: No credentials found.")
+
+            except Exception as e:
+                log(f"Error saving to Firestore: {e}")
+            # -------------------------
+
         else:
             log(f"Job failed: {resp.status_code} {resp.text}")
 

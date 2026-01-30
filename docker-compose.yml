@@ -21,10 +21,14 @@ services:
     restart: always
     depends_on:
       - agent
+    env_file:
+      - agent/.env
+    volumes:
+      - ./agent/ai-agentic-hackathon-4-97df01870654.json:/app/agent/ai-agentic-hackathon-4-97df01870654.json
     environment:
       - AGENT_API_URL=http://agent:8080
-      - INTERVAL_MINUTES=30
-      - START_QUIET_HOUR=22
+      - INTERVAL_MINUTES=1
+      - START_QUIET_HOUR=24
       - END_QUIET_HOUR=7
       - TZ=Asia/Tokyo
     networks:
