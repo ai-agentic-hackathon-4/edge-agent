@@ -28,7 +28,7 @@ services:
     environment:
       - AGENT_API_URL=http://agent:8080
       - INTERVAL_MINUTES=1
-      - START_QUIET_HOUR=24
+      - START_QUIET_HOUR=1
       - END_QUIET_HOUR=7
       - TZ=Asia/Tokyo
     networks:
