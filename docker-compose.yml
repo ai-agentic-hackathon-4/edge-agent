@@ -53,4 +53,4 @@ services:
 
 networks:
   edge-agent-net:
-    external: true
+    driver: bridge
