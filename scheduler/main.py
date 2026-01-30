@@ -55,21 +55,23 @@ def run_job():
             log("Could not extract session_id.")
             return
 
-        # 2. Send Prompt
-        turn_url = f"{AGENT_API_URL}/apps/agent/users/default/sessions/{session_id}/turns"
+        # 2. Run Agent
+        run_url = f"{AGENT_API_URL}/run"
         payload = {
-            "queries": [
-                {"text": PROMPT_MESSAGE}
-            ]
+            "app_name": "agent",
+            "user_id": "default",
+            "session_id": session_id,
+            "new_message": PROMPT_MESSAGE
         }
         
-        log(f"Sending prompt to {turn_url}...")
-        resp = requests.post(turn_url, json=payload, timeout=120)
+        log(f"Sending prompt to {run_url}...")
+        resp = requests.post(run_url, json=payload, timeout=120)
         
         if resp.status_code == 200:
             log("Job completed successfully.")
+            # Response is a list of Events
             data = resp.json()
-            log(f"Agent Response: {data}")
+            log(f"Agent Response Events: {len(data)}")
 
             # --- Firestore Logging ---
             try:
@@ -94,16 +96,19 @@ def run_job():
                     # Assuming data is the JSON body of the response.
                     # We need to find the text part.
                     agent_text = ""
-                    # Simple heuristic traversal
-                    if "steps" in data:
-                        for step in data["steps"]:
-                            if "content" in step and "parts" in step["content"]:
-                                for part in step["content"]["parts"]:
-                                    if "text" in part:
-                                        agent_text += part["text"]
+                    # Extract the actual agent message from Event list.
+                    # Each event has 'content' with 'parts'
+                    agent_text = ""
+                    if isinstance(data, list):
+                        for event in data:
+                            if "content" in event and event["content"]:
+                                if "parts" in event["content"]:
+                                    for part in event["content"]["parts"]:
+                                        if "text" in part:
+                                            agent_text += part["text"]
 
                     if not agent_text:
-                        # Fallback: maybe directly in response if different format
+                        # Fallback
                         agent_text = json.dumps(data)
 
                     # Try to parse agent_text as JSON (since we requested JSON mode)
