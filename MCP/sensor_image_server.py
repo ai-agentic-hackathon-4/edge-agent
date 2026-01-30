@@ -295,10 +295,11 @@ async def control_humidifier(
     # Sensor-node `HumidifierMode` expects "auto", "101"(low), "102"(medium), "103"(high)
     
     h_modes = {
-        "auto": "auto",
-        "low": "101",
-        "medium": "102",
-        "high": "103"
+        "auto": "7",
+        "high": "1",
+        "medium": "2",
+        "low": "3",
+        "quiet": "4"
     }
     
     mode_val = h_modes.get(mode.lower())
