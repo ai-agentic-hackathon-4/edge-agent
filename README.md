@@ -14,6 +14,41 @@
     - デバイス制御（エアコン・加湿器・ポンプ）
     - 植物健康診断と環境最適化
 
+## システム構成図 (Architecture)
+
+```mermaid
+graph TD
+    subgraph "Docker Compose (Edge Agent)"
+        Scheduler[Scheduler Container<br>Checking every 30m]
+        Agent[Agent API Container<br>Gemini 3 + MCP Client]
+        WebUI[Web UI Container<br>Dashboard]
+    end
+
+    subgraph "Edge Device (Raspberry Pi)"
+        SensorNode[Sensor Node API<br>FastAPI + SwitchBot/Sensors]
+        Logs[Local Logs]
+    end
+
+    subgraph "Google Cloud"
+        VertexAI[Vertex AI<br>Gemini 3 Flash]
+        GCS[Cloud Storage<br>Images]
+        Firestore[Firestore<br>Execution Logs]
+    end
+
+    Scheduler -- Trigger/Prompt --> Agent
+    Scheduler -- Save Result --> Firestore
+    
+    Agent -- Generate Content --> VertexAI
+    Agent -- MCP Protocol (Stdio) --> MCP[MCP Server Process]
+    
+    MCP -- Capture & Upload --> GCS
+    MCP -- Control & Sense --> SensorNode
+    
+    WebUI -- Read --> Firestore
+    WebUI -- Read --> Logs
+    Scheduler -- Write --> Logs
+```
+
 ## 提供されるMCPツール
 
 1. **capture_image**: カメラから画像をキャプチャしGCSにアップロード
@@ -81,8 +116,9 @@
 `docker-compose` を使用すると、Agent APIサーバーと定期実行スケジューラーをまとめて起動できます。
 
 1. **起動**
+   ※ Docker権限がない場合は `sudo` を付けて実行してください。
    ```bash
-   docker-compose up -d --build
+   sudo docker-compose up -d --build
    ```
 
    - **Agent API**: `http://localhost:8080` でアクセス可能。
