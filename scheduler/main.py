@@ -61,7 +61,11 @@ def run_job():
             "app_name": "agent",
             "user_id": "default",
             "session_id": session_id,
-            "new_message": PROMPT_MESSAGE
+            "new_message": {
+                "parts": [
+                    {"text": PROMPT_MESSAGE}
+                ]
+            }
         }
         
         log(f"Sending prompt to {run_url}...")
