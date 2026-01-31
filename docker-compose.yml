@@ -51,6 +51,18 @@ services:
     networks:
       - edge-agent-net
 
+  discord-logger:
+    build: ./discord_logger
+    container_name: discord-logger
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./scripts/logs:/app/logs:ro
+    env_file:
+      - agent/.env
+    networks:
+      - edge-agent-net
+
 networks:
   edge-agent-net:
     driver: bridge
