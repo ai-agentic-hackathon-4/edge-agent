@@ -41,8 +41,8 @@ try:
         if doc.exists:
             data = doc.to_dict()
             if "instruction" in data:
-                print("Loaded AGENT_INSTRUCTION from Firestore.")
-                os.environ["AGENT_INSTRUCTION"] = data["instruction"]
+                print("Loaded FIRESTORE_INSTRUCTION from Firestore.")
+                os.environ["FIRESTORE_INSTRUCTION"] = data["instruction"]
     else:
         print("Warning: GOOGLE_APPLICATION_CREDENTIALS not set, skipping Firestore fetch.")
 except Exception as e:

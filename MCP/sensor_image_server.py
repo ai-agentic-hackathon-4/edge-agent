@@ -436,5 +436,25 @@ async def calculate_vpd(
         )
     ]
 
+@server.tool()
+async def get_current_time():
+    """
+    Get the current time in Japan Standard Time (JST).
+    Returns the ISO 8601 formatted string of the current JST time.
+    """
+    import pytz
+    from datetime import datetime
+    
+    jst = pytz.timezone('Asia/Tokyo')
+    now = datetime.now(jst)
+    
+    return [
+        TextContent(
+            type="text",
+            text=f"Current JST Time: {now.isoformat()}"
+        )
+    ]
+
+
 if __name__ == "__main__":
     server.run()
