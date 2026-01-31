@@ -1,5 +1,7 @@
 FROM python:3.12-slim
 
+# Ensure python output is sent directly to terminal (stdout) without buffering
+ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 COPY requirements.txt .

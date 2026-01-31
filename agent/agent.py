@@ -212,9 +212,9 @@ def create_agent():
     if firestore_instruction:
         default_instruction += "\n\n" + "**以下は今回の植物に関する追加情報および育成ガイドです:**\n" + firestore_instruction
 
-    print("=== Full Agent Instruction ===")
-    print(default_instruction)
-    print("==============================")
+    print("=== Full Agent Instruction ===", flush=True)
+    print(default_instruction, flush=True)
+    print("==============================", flush=True)
 
     return LlmAgent(
         name="sensor_gemini_agent",
