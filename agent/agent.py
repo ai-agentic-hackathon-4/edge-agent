@@ -207,10 +207,15 @@ def create_agent():
             "}"
     )
 
+    # Append Firestore instruction if available
+    firestore_instruction = os.environ.get("FIRESTORE_INSTRUCTION")
+    if firestore_instruction:
+        default_instruction += "\n\n" + "**以下は今回の植物に関する追加情報および育成ガイドです:**\n" + firestore_instruction
+
     return LlmAgent(
         name="sensor_gemini_agent",
         model=MODEL_ID,
-        instruction=os.environ.get("AGENT_INSTRUCTION", default_instruction),
+        instruction=default_instruction,
         tools=[mcp_toolset],
         generate_content_config=genai_types.GenerateContentConfig(
             response_mime_type="application/json"
