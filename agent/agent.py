@@ -125,10 +125,18 @@ class CustomLlmAgent(LlmAgent):
             return genai_types.GenerateContentConfig()
         return generate_content_config
 
+from typing import Dict
+
+class OperationDetails(BaseModel):
+    action: str = Field(description="Action taken (e.g., 'Heating 25C ON')")
+    comment: str = Field(description="Reason or additional info")
+    severity: str = Field(description="Severity of the operation: 'info' (routine/check), 'warning' (action taken/adjustment), 'critical' (emergency)")
+
 class AgentOutput(BaseModel):
     logs: List[str] = Field(description="List of operation logs (e.g., 'Air conditioner set to 25C', 'Checked sensor data')")
     plant_status: str = Field(description="Current status of the plant (e.g., 'Healthy', 'Wilting', 'Dry')")
     growth_stage: int = Field(description="Growth stage of the plant from 1 to 5 (1: Sprout, 5: Harvest)")
+    operation: Dict[str, OperationDetails] = Field(description="Details of operations performed on devices")
     comment: str = Field(description="Message or advice to the user")
 
 def create_agent():
@@ -169,8 +177,16 @@ def create_agent():
             "   - 操作を行った場合、その内容を『logs』リストに追加してください（例: 'エアコンを25度に設定しました'）。"
             "   - 土壌水分が低い場合（例: 30%未満）は、**`control_pump`を使用して水やり（例: 50ml）を行ってください**。"
             "   - **ポンプを使用した場合は、必ずその内容（水量など）を『logs』リストに追加してください。**"
-            "8. 植物の状態が**緊急**である場合、`send_discord_notification`を使用して警告し、その旨を『logs』に記録してください。"
-            "9. ユーザーへの総合的なアドバイスやコメントを『comment』フィールドに記述してください。"
+            "8. **操作の記録**: 操作を行った場合、または現状維持の判断についても『operation』フィールドに詳細を記録してください。"
+            "   - キー: デバイス名（例: 'エアコン', '加湿器', 'ポンプ'）。"
+            "   - 『action』: 具体的なアクション内容（例: '暖房25℃でON', 'OFF', '現状維持'）。"
+            "   - 『comment』: 理由や補足。"
+            "   - 『severity』: そのアクションの重要度。"
+            "     - `info`: 現状維持、定期チェック報告など。"
+            "     - `warning`: 設定変更、水やりなどの能動的なアクション。"
+            "     - `critical`: 緊急警告、異常検知など。"
+            "9. 植物の状態が**緊急**である場合、`send_discord_notification`を使用して警告し、その旨を『logs』に記録してください。"
+            "10. ユーザーへの総合的なアドバイスやコメントを『comment』フィールドに記述してください。"
             "\n"
             "**出力フォーマット**:\n"
             "以下のJSONスキーマに従って、**JSONオブジェクトのみ**を出力してください。Markdownコードブロック（```json ... ```）は使用しないでください。\n"
@@ -178,6 +194,13 @@ def create_agent():
             "  \"logs\": [\"ログメッセージ1\", \"ログメッセージ2\"],\n"
             "  \"plant_status\": \"健康状態の説明\",\n"
             "  \"growth_stage\": 3,\n"
+            "  \"operation\": {\n"
+            "    \"エアコン\": {\n"
+            "      \"action\": \"暖房25℃でON\",\n"
+            "      \"comment\": \"寒いため設定温度を上げました\",\n"
+            "      \"severity\": \"warning\"\n"
+            "    }\n"
+            "  },\n"
             "  \"comment\": \"ユーザーへのメッセージ\"\n"
             "}"
     )

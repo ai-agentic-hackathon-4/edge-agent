@@ -189,7 +189,7 @@ async def main():
             if "GOOGLE_APPLICATION_CREDENTIALS" in os.environ:
                  db = firestore.Client(database="ai-agentic-hackathon-4-db")
                  # Use timestamp as document ID for easy sorting/finding
-                 doc_id = now.isoformat()
+                 doc_id = str(int(now.timestamp()))
                  db.collection("agent_execution_logs").document(doc_id).set(final_data)
                  print(f"Saved execution log to Firestore: agent_execution_logs/{doc_id}")
             else:
