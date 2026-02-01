@@ -221,15 +221,46 @@ def create_agent():
             "}"
     )
 
-    # Append Firestore instruction if available
-    firestore_instruction = os.environ.get("FIRESTORE_INSTRUCTION")
-    if firestore_instruction:
-        default_instruction += "\n\n" + "**以下は今回の植物に関する追加情報および育成ガイドです:**\n" + firestore_instruction
-
     # Configure logger
     import logging
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
+
+    # --- Credential Setup ---
+    # Try to load credentials from default file if not in env
+    if "GOOGLE_APPLICATION_CREDENTIALS" not in os.environ:
+        # Default path in Docker/Repo structure
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        key_path = os.path.join(project_root, "agent", "ai-agentic-hackathon-4-97df01870654.json")
+        if os.path.exists(key_path):
+             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = key_path
+             logger.info(f"Loaded credentials from file: {key_path}")
+        else:
+             logger.warning(f"Credential file not found at: {key_path}")
+
+    # Append Firestore instruction if available
+    firestore_instruction = os.environ.get("FIRESTORE_INSTRUCTION")
+    
+    if not firestore_instruction:
+        # Fetch from Firestore
+        try:
+            from google.cloud import firestore
+            # Check creds or project env (standard checks)
+            if "GOOGLE_APPLICATION_CREDENTIALS" in os.environ or "GOOGLE_CLOUD_PROJECT" in os.environ:
+                 # Attempt to connect (default project or inferred)
+                 # Using explicit database if needed, or default
+                 db = firestore.Client(database="ai-agentic-hackathon-4-db")
+                 doc = db.collection("configurations").document("edge_agent").get()
+                 if doc.exists:
+                     data = doc.to_dict()
+                     if "instruction" in data:
+                         firestore_instruction = data["instruction"]
+                         logger.info("Loaded FIRESTORE_INSTRUCTION from Firestore.")
+        except Exception as e:
+            logger.warning(f"Failed to fetch instruction from Firestore: {e}")
+
+    if firestore_instruction:
+        default_instruction += "\n\n" + "**以下は今回の植物に関する追加情報および育成ガイドです:**\n" + firestore_instruction
 
     logger.info("=== Full Agent Instruction ===")
     logger.info(default_instruction)
