@@ -11,6 +11,7 @@ AGENT_API_URL = os.environ.get("AGENT_API_URL", "http://agent:8080")
 INTERVAL_MINUTES = int(os.environ.get("INTERVAL_MINUTES", "30"))
 START_QUIET_HOUR = int(os.environ.get("START_QUIET_HOUR", "22")) # 22:00
 END_QUIET_HOUR = int(os.environ.get("END_QUIET_HOUR", "7"))     # 07:00
+AGENT_TIMEOUT = int(os.environ.get("AGENT_TIMEOUT", "300"))
 PROMPT_MESSAGE = "定期モニタリングを実行してください。植物の状態、土壌水分、環境データ(温度/湿度/照度)を確認し、必要なら水やりや空調調整を行い、ログに残してください。"
 
 def log(msg):
@@ -80,7 +81,7 @@ def run_job():
         }
         
         log(f"Sending prompt to {run_url}...")
-        resp = requests.post(run_url, json=payload, timeout=120)
+        resp = requests.post(run_url, json=payload, timeout=AGENT_TIMEOUT)
         
         if resp.status_code == 200:
             log("Job completed successfully.")
@@ -88,10 +89,52 @@ def run_job():
             data = resp.json()
             log(f"Agent Response Events: {len(data)}")
 
+            # --- Parse Agent Response ---
+            import json
+            structured_data = {}
+            try:
+                # Extract the actual agent message.
+                # ADK response structure: { "steps": [ { "content": { "parts": [ { "text": "JSON_STRING" } ] } } ] }
+                # Or simple output if simplified.
+                # We need to parse the JSON string embedded in the response text if using structured output mode.
+                
+                agent_text = ""
+                if isinstance(data, list):
+                    for event in data:
+                        if "content" in event and event["content"]:
+                            if "parts" in event["content"]:
+                                for part in event["content"]["parts"]:
+                                    if "text" in part:
+                                        agent_text += part["text"]
+
+                if not agent_text:
+                    # Fallback
+                    agent_text = json.dumps(data)
+
+                # Try to parse agent_text as JSON (since we requested JSON mode)
+                clean_text = agent_text.strip()
+                if clean_text.startswith("```json"):
+                    clean_text = clean_text[7:]
+                if clean_text.endswith("```"):
+                    clean_text = clean_text[:-3]
+                clean_text = clean_text.strip()
+                
+                try:
+                    structured_data = json.loads(clean_text)
+                except json.JSONDecodeError:
+                    # If not JSON, save as raw text wrapped in dict
+                    structured_data = {"raw_output": agent_text}
+
+                # Log the structured response to stdout (ALWAYS)
+                log(f"Agent Response: {json.dumps(structured_data, ensure_ascii=False, indent=2)}")
+
+            except Exception as e:
+                log(f"Error parsing agent response: {e}")
+                structured_data = {"raw_output": str(data)}
+
             # --- Firestore Logging ---
             try:
                 from google.cloud import firestore
-                import json
                 
                 # Check authentication
                 if "GOOGLE_APPLICATION_CREDENTIALS" in os.environ or "GOOGLE_CLOUD_PROJECT" in os.environ:
@@ -102,43 +145,6 @@ def run_job():
                         db = firestore.Client(project=project_id, database="ai-agentic-hackathon-4-db")
                     else:
                         db = firestore.Client(database="ai-agentic-hackathon-4-db")
-
-                    # Extract the actual agent message.
-                    # ADK response structure: { "steps": [ { "content": { "parts": [ { "text": "JSON_STRING" } ] } } ] }
-                    # Or simple output if simplified.
-                    # We need to parse the JSON string embedded in the response text if using structured output mode.
-                    
-                    # Assuming data is the JSON body of the response.
-                    # We need to find the text part.
-                    agent_text = ""
-                    # Extract the actual agent message from Event list.
-                    # Each event has 'content' with 'parts'
-                    agent_text = ""
-                    if isinstance(data, list):
-                        for event in data:
-                            if "content" in event and event["content"]:
-                                if "parts" in event["content"]:
-                                    for part in event["content"]["parts"]:
-                                        if "text" in part:
-                                            agent_text += part["text"]
-
-                    if not agent_text:
-                        # Fallback
-                        agent_text = json.dumps(data)
-
-                    # Try to parse agent_text as JSON (since we requested JSON mode)
-                    clean_text = agent_text.strip()
-                    if clean_text.startswith("```json"):
-                        clean_text = clean_text[7:]
-                    if clean_text.endswith("```"):
-                        clean_text = clean_text[:-3]
-                    clean_text = clean_text.strip()
-                    
-                    try:
-                        structured_data = json.loads(clean_text)
-                    except json.JSONDecodeError:
-                        # If not JSON, save as raw text wrapped in dict
-                        structured_data = {"raw_output": agent_text}
 
                     # Add metadata
                     log_entry = {

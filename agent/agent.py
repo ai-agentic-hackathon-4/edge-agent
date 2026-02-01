@@ -145,6 +145,8 @@ def create_agent():
     default_server_path = "/app/MCP/sensor_image_server.py"
     server_script_path = os.environ.get("MCP_SERVER_PATH", default_server_path)
     
+    MCP_TIMEOUT = float(os.environ.get("MCP_TIMEOUT", "300.0"))
+    
     # Env for subprocess
     env = os.environ.copy()
     # Add project root to PYTHONPATH so `from MCP import ...` works
@@ -158,7 +160,7 @@ def create_agent():
                 args=[server_script_path],
                 env=env
             ),
-            timeout=120.0
+            timeout=MCP_TIMEOUT
         ),
     )
 
@@ -224,9 +226,14 @@ def create_agent():
     if firestore_instruction:
         default_instruction += "\n\n" + "**以下は今回の植物に関する追加情報および育成ガイドです:**\n" + firestore_instruction
 
-    print("=== Full Agent Instruction ===", flush=True)
-    print(default_instruction, flush=True)
-    print("==============================", flush=True)
+    # Configure logger
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
+    logger.info("=== Full Agent Instruction ===")
+    logger.info(default_instruction)
+    logger.info("==============================")
 
     return LlmAgent(
         name="sensor_gemini_agent",
