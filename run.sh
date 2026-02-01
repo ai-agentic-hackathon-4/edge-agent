@@ -33,4 +33,4 @@ fi
 
 echo "Starting Agent as API Server..."
 # Run the agent as API
-$ADK_CMD api_server agent
+$ADK_CMD api_server agent --log_level DEBUG
