@@ -180,7 +180,7 @@ def main():
     # Run once immediately on startup? Or wait?
     # Usually better to wait or run after small delay.
     # Let's run immediately for verification, then schedule.
-    # run_job() 
+    run_job() 
 
     schedule.every(INTERVAL_MINUTES).minutes.do(run_job)
     
