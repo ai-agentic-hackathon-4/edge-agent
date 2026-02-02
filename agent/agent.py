@@ -140,17 +140,55 @@ class AgentOutput(BaseModel):
     comment: str = Field(description="Message or advice to the user")
 
 def create_agent():
-    # MCP Toolset (Stdio mode)
-    # MCP_SERVER_PATH 環境変数があればそれを使用し、なければコンテナ内のデフォルトパスを使用
-    default_server_path = "/app/MCP/sensor_image_server.py"
-    server_script_path = os.environ.get("MCP_SERVER_PATH", default_server_path)
+    # Calculate project root dynamically and relative paths
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    local_mcp_path = os.path.join(project_root, "MCP", "sensor_image_server.py")
+    local_key_path = os.path.join(project_root, "agent", "ai-agentic-hackathon-4-97df01870654.json")
+
+    # --- MCP Server Path Handling ---
+    # Env var might be set to Docker path (e.g., /app/...)
+    env_mcp_path = os.environ.get("MCP_SERVER_PATH")
+    
+    if env_mcp_path and os.path.exists(env_mcp_path):
+        server_script_path = env_mcp_path
+    else:
+        # Fallback to local relative path if env path is missing or invalid
+        server_script_path = local_mcp_path
+        # Update env for visibility (optional)
+        os.environ["MCP_SERVER_PATH"] = server_script_path
+        if env_mcp_path:
+             logger = logging.getLogger(__name__) # Logger might not be configured yet, but usually is fine, or just print
+             print(f"Warning: MCP_SERVER_PATH '{env_mcp_path}' not found. Falling back to: {server_script_path}")
+
+    # --- Credential Handling ---
+    # Env var might be set to Docker path via .env
+    env_cred_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+    
+    if env_cred_path and not os.path.exists(env_cred_path):
+        # Explicit path set but invalid (e.g. /app/...), try local fallback
+        if os.path.exists(local_key_path):
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = local_key_path
+            print(f"Warning: Credential file '{env_cred_path}' not found. Falling back to: {local_key_path}")
+        else:
+             print(f"Warning: Credential file '{env_cred_path}' not found and local fallback '{local_key_path}' also missing.")
+    elif not env_cred_path:
+        # Not set at all, try local fallback
+        if os.path.exists(local_key_path):
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = local_key_path
+            print(f"Set GOOGLE_APPLICATION_CREDENTIALS to: {local_key_path}")
+
+    # Ensure google.auth sees the change by reloading default credentials if possible
+    # But usually just setting env var is enough.
+    # Let's verify the value finally set.
+    final_cred_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+    print(f"Debug: Final GOOGLE_APPLICATION_CREDENTIALS = {final_cred_path}")
+
     
     MCP_TIMEOUT = float(os.environ.get("MCP_TIMEOUT", "300.0"))
     
     # Env for subprocess
     env = os.environ.copy()
     # Add project root to PYTHONPATH so `from MCP import ...` works
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     env["PYTHONPATH"] = project_root + os.pathsep + env.get("PYTHONPATH", "")
 
     mcp_toolset = GCSAwareMcpToolset(
@@ -195,7 +233,7 @@ def create_agent():
             "9. **フェーズ3: 記録と終了（Logging & Finish）**"
             "   - 操作の成否（通常は成功とみなす）に基づき、以下のJSONを作成して出力し、**直ちに会話を終了してください**。"
             "   - **操作後の再確認は不要です。**"
-            "   - **操作の記録**: 操作を行った場合『operation』フィールドに詳細を記録してください。"
+            "   - **操作の記録**: 設定変更やアクション（ON/OFF切替、水やり等）があった場合のみ『operation』に記録してください。現状維持（OFF継続や設定変更なし）の場合は出力しないでください。"
             "   - キー: デバイス名（例: 'エアコン', '加湿器', 'ポンプ'）。"
             "   - 『action』: 具体的なアクション内容（例: '暖房25℃でON', 'OFF', '現状維持（設定済み）'）。"
             "   - 『comment』: 理由や補足。"
@@ -238,18 +276,6 @@ def create_agent():
     import logging
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
-
-    # --- Credential Setup ---
-    # Try to load credentials from default file if not in env
-    if "GOOGLE_APPLICATION_CREDENTIALS" not in os.environ:
-        # Default path in Docker/Repo structure
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-        key_path = os.path.join(project_root, "agent", "ai-agentic-hackathon-4-97df01870654.json")
-        if os.path.exists(key_path):
-             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = key_path
-             logger.info(f"Loaded credentials from file: {key_path}")
-        else:
-             logger.warning(f"Credential file not found at: {key_path}")
 
     # Append Firestore instruction if available
     firestore_instruction = os.environ.get("FIRESTORE_INSTRUCTION")
