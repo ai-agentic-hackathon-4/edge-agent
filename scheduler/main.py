@@ -5,6 +5,7 @@ import requests
 import schedule
 import datetime
 import sys
+import json
 
 # Configuration
 AGENT_API_URL = os.environ.get("AGENT_API_URL", "http://agent:8080")
@@ -13,6 +14,9 @@ START_QUIET_HOUR = int(os.environ.get("START_QUIET_HOUR", "22")) # 22:00
 END_QUIET_HOUR = int(os.environ.get("END_QUIET_HOUR", "7"))     # 07:00
 AGENT_TIMEOUT = int(os.environ.get("AGENT_TIMEOUT", "300"))
 PROMPT_MESSAGE = "定期モニタリングを実行してください。植物の状態、土壌水分、環境データ(温度/湿度/照度)を確認し、必要なら水やりや空調調整を行い、ログに残してください。"
+
+# Session persistence file path
+SESSION_FILE_PATH = os.environ.get("SESSION_FILE_PATH", "/app/data/current_session.json")
 
 def log(msg):
     print(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", file=sys.stdout, flush=True)
@@ -26,7 +30,40 @@ def is_quiet_time():
     else:
         return START_QUIET_HOUR <= hour < END_QUIET_HOUR
 
-# State
+def load_session_id():
+    """Load session ID from persistent file."""
+    try:
+        if os.path.exists(SESSION_FILE_PATH):
+            with open(SESSION_FILE_PATH, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                session_id = data.get("session_id")
+                if session_id:
+                    log(f"Loaded session ID from file: {session_id}")
+                    return session_id
+    except Exception as e:
+        log(f"Error loading session ID from file: {e}")
+    return None
+
+def save_session_id(session_id):
+    """Save session ID to persistent file."""
+    try:
+        os.makedirs(os.path.dirname(SESSION_FILE_PATH), exist_ok=True)
+        with open(SESSION_FILE_PATH, 'w', encoding='utf-8') as f:
+            json.dump({"session_id": session_id}, f)
+        log(f"Saved session ID to file: {session_id}")
+    except Exception as e:
+        log(f"Error saving session ID to file: {e}")
+
+def clear_session_id():
+    """Clear session ID from persistent file."""
+    try:
+        if os.path.exists(SESSION_FILE_PATH):
+            os.remove(SESSION_FILE_PATH)
+            log("Cleared session ID file.")
+    except Exception as e:
+        log(f"Error clearing session ID file: {e}")
+
+# State (loaded from file on startup)
 CURRENT_SESSION_ID = None
 
 def run_job():
@@ -39,6 +76,10 @@ def run_job():
     log("Starting periodic monitoring job...")
     
     # 1. Create/Get Session if not exists
+    if not CURRENT_SESSION_ID:
+        # Try to load from file first
+        CURRENT_SESSION_ID = load_session_id()
+    
     if not CURRENT_SESSION_ID:
         try:
             # Create session
@@ -60,6 +101,8 @@ def run_job():
                 return
             
             CURRENT_SESSION_ID = session_id
+            # Save to file for persistence
+            save_session_id(CURRENT_SESSION_ID)
         except Exception as e:
             log(f"Exception during session creation: {e}")
             return
@@ -90,7 +133,6 @@ def run_job():
             log(f"Agent Response Events: {len(data)}")
 
             # --- Parse Agent Response ---
-            import json
             structured_data = {}
             try:
                 # Extract the actual agent message.
@@ -168,6 +210,7 @@ def run_job():
         elif resp.status_code == 404:
             log(f"Session not found (404). Resetting session ID.")
             CURRENT_SESSION_ID = None
+            clear_session_id()
         else:
             log(f"Job failed: {resp.status_code} {resp.text}")
 
@@ -175,7 +218,13 @@ def run_job():
         log(f"Exception during job execution: {e}")
 
 def main():
+    global CURRENT_SESSION_ID
     log(f"Scheduler started. Target: {AGENT_API_URL}, Interval: {INTERVAL_MINUTES} min")
+    
+    # Load session ID from file on startup
+    CURRENT_SESSION_ID = load_session_id()
+    if CURRENT_SESSION_ID:
+        log(f"Restored session from previous run: {CURRENT_SESSION_ID}")
     
     # Run once immediately on startup? Or wait?
     # Usually better to wait or run after small delay.
