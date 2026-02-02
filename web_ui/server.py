@@ -167,7 +167,7 @@ def create_new_session() -> dict:
         session_url = f"{AGENT_API_URL}/apps/agent/users/default/sessions"
         resp = requests.post(session_url, json={}, timeout=30)
         if resp.status_code != 200:
-            return {"error": f"Failed to create session: {resp.status_code} {resp.text}"}
+            return {"error": f"Failed to create session at {session_url}: {resp.status_code} {resp.text}"}
         
         session_data = resp.json()
         session_id = session_data.get("id")
@@ -190,7 +190,7 @@ def list_sessions() -> dict:
         sessions_url = f"{AGENT_API_URL}/apps/agent/users/default/sessions"
         resp = requests.get(sessions_url, timeout=30)
         if resp.status_code != 200:
-            return {"error": f"Failed to list sessions: {resp.status_code} {resp.text}"}
+            return {"error": f"Failed to list sessions from {sessions_url}: {resp.status_code} {resp.text}"}
         
         sessions_data = resp.json()
         # The response format may vary; extract session list

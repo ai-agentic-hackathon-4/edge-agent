@@ -5,7 +5,7 @@ import requests
 import schedule
 import datetime
 import sys
-import json as _json
+import json
 
 # Configuration
 AGENT_API_URL = os.environ.get("AGENT_API_URL", "http://agent:8080")
@@ -35,7 +35,7 @@ def load_session_id():
     try:
         if os.path.exists(SESSION_FILE_PATH):
             with open(SESSION_FILE_PATH, 'r', encoding='utf-8') as f:
-                data = _json.load(f)
+                data = json.load(f)
                 session_id = data.get("session_id")
                 if session_id:
                     log(f"Loaded session ID from file: {session_id}")
@@ -49,7 +49,7 @@ def save_session_id(session_id):
     try:
         os.makedirs(os.path.dirname(SESSION_FILE_PATH), exist_ok=True)
         with open(SESSION_FILE_PATH, 'w', encoding='utf-8') as f:
-            _json.dump({"session_id": session_id}, f)
+            json.dump({"session_id": session_id}, f)
         log(f"Saved session ID to file: {session_id}")
     except Exception as e:
         log(f"Error saving session ID to file: {e}")
@@ -133,7 +133,6 @@ def run_job():
             log(f"Agent Response Events: {len(data)}")
 
             # --- Parse Agent Response ---
-            import json
             structured_data = {}
             try:
                 # Extract the actual agent message.
