@@ -24,6 +24,7 @@ services:
     env_file:
       - agent/.env
     volumes:
+      - ./data:/app/data
       - ./agent/ai-agentic-hackathon-4-97df01870654.json:/app/agent/ai-agentic-hackathon-4-97df01870654.json
     environment:
       - AGENT_API_URL=http://agent:8080
@@ -44,10 +45,12 @@ services:
       - ./scripts/logs:/app/scripts/logs
       - ./agent/.env:/app/agent/.env
       - ./agent/ai-agentic-hackathon-4-97df01870654.json:/app/agent/ai-agentic-hackathon-4-97df01870654.json
+      - ./data:/app/data
     env_file:
       - agent/.env
     environment:
       - TZ=Asia/Tokyo
+      - AGENT_API_URL=http://agent:8080
     networks:
       - edge-agent-net
 
