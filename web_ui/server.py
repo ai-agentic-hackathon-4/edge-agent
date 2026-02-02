@@ -161,6 +161,17 @@ def set_current_session(session_id: str) -> dict:
             return {"error": str(exc)}
 
 
+def clear_current_session() -> dict:
+    """Clear the current session ID from the persistent file."""
+    with SESSION_LOCK:
+        try:
+            if SESSION_FILE_PATH.exists():
+                SESSION_FILE_PATH.unlink()
+            return {"status": "ok", "message": "Session cleared"}
+        except Exception as exc:
+            return {"error": str(exc)}
+
+
 def create_new_session() -> dict:
     """Create a new session via the agent API."""
     try:
@@ -236,6 +247,8 @@ HTML_PAGE = """<!doctype html>
       .status-message { padding: 8px; margin-top: 8px; }
       .status-message.success { background-color: #d4edda; color: #155724; }
       .status-message.error { background-color: #f8d7da; color: #721c24; }
+      .btn-danger { background-color: #dc3545; color: white; border: none; padding: 8px 16px; cursor: pointer; }
+      .btn-danger:hover { background-color: #c82333; }
     </style>
   </head>
   <body>
@@ -246,6 +259,7 @@ HTML_PAGE = """<!doctype html>
       <p>現在のセッションID: <strong id="current-session">読み込み中...</strong></p>
       <button onclick="createNewSession()">新規セッション作成</button>
       <button onclick="loadSessions()">セッション一覧を更新</button>
+      <button class="btn-danger" onclick="clearSession()">セッション初期化</button>
       <div id="session-status"></div>
       <h3>利用可能なセッション</h3>
       <div id="sessions-list">読み込み中...</div>
@@ -371,6 +385,28 @@ HTML_PAGE = """<!doctype html>
           currentSessionId = data.session_id;
           document.getElementById("current-session").textContent = data.session_id;
           showSessionStatus(`新規セッション ${data.session_id} を作成しました`);
+          loadSessions();
+        } catch (error) {
+          showSessionStatus(`エラー: ${error}`, true);
+        }
+      }
+
+      async function clearSession() {
+        if (!confirm("現在のセッションを初期化しますか？次回のスケジューラー実行時に新しいセッションが作成されます。")) {
+          return;
+        }
+        try {
+          const response = await fetch("/api/session/clear", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+          });
+          const data = await response.json();
+          if (!response.ok || data.error) {
+            throw new Error(data.error || `HTTP ${response.status}`);
+          }
+          currentSessionId = null;
+          document.getElementById("current-session").textContent = "(未設定)";
+          showSessionStatus("セッションを初期化しました。次回実行時に新しいセッションが作成されます。");
           loadSessions();
         } catch (error) {
           showSessionStatus(`エラー: ${error}`, true);
@@ -544,6 +580,10 @@ class RequestHandler(BaseHTTPRequestHandler):
         
         if parsed.path == "/api/session/new":
             self._send_json(create_new_session())
+            return
+        
+        if parsed.path == "/api/session/clear":
+            self._send_json(clear_current_session())
             return
         
         if parsed.path == "/api/settings":
