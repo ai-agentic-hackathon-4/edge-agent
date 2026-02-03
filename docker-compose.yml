@@ -12,6 +12,8 @@ services:
     volumes:
       - ./data:/app/data
       - ./agent/ai-agentic-hackathon-4-97df01870654.json:/app/agent/ai-agentic-hackathon-4-97df01870654.json
+    environment:
+      - TZ=Asia/Tokyo
     networks:
       - edge-agent-net
 
