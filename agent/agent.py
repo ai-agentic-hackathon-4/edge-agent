@@ -8,7 +8,7 @@ from google.adk.agents.llm_agent import LlmAgent
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, McpToolset, StdioConnectionParams
 from mcp.client.stdio import StdioServerParameters
 from google.genai import types as genai_types
-from google.genai.types import HttpRetryOptions
+from google.genai.types import HttpRetryOptions, ThinkingConfig
 from google.adk.models.google_llm import Gemini
 import types
 import re
@@ -65,6 +65,8 @@ MODEL_ID = "gemini-3-flash-preview"
 
 # --- モンキーパッチ開始 ---
 from google.adk.events.event import Event
+from google.adk.agents.invocation_context import InvocationContext
+from typing import AsyncGenerator
 import google.adk.flows.llm_flows.functions as adk_functions
 
 # ADKの __build_response_event にパッチを適用し、ツールからマルチモーダルなPartオブジェクトを返せるようにする。
@@ -313,7 +315,7 @@ def create_agent():
     logger.info(default_instruction)
     logger.info("==============================")
 
-    return LlmAgent(
+    return CustomLlmAgent(
         name="sensor_gemini_agent",
         model=Gemini(
             model=MODEL_ID,
@@ -329,7 +331,8 @@ def create_agent():
         instruction=default_instruction,
         tools=[mcp_toolset],
         generate_content_config=genai_types.GenerateContentConfig(
-            response_mime_type="application/json"
+            response_mime_type="application/json",
+            thinking_config=ThinkingConfig(include_thoughts=True)
         ),
     )
 
