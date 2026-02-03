@@ -75,147 +75,180 @@ def run_job():
 
     log("Starting periodic monitoring job...")
     
-    # 1. Create/Get Session if not exists
-    if not CURRENT_SESSION_ID:
-        # Try to load from file first
-        CURRENT_SESSION_ID = load_session_id()
+    max_retries = 1
+    for attempt in range(max_retries + 1):
+        # 1. Create/Get Session if not exists
+        if not CURRENT_SESSION_ID:
+            # Try to load from file first
+            CURRENT_SESSION_ID = load_session_id()
+        
+        if not CURRENT_SESSION_ID:
+            try:
+                # Create session
+                session_url = f"{AGENT_API_URL}/apps/agent/users/default/sessions"
+                resp = requests.post(session_url, json={})
+                if resp.status_code != 200:
+                    log(f"Error creating session: {resp.status_code} {resp.text}")
+                    return
+                    
+                session_id = resp.json().get("id")
+                
+                log(f"Created session: {session_id} (Response: {resp.json()})")
+                if not session_id:
+                     # Fallback if response structure is different
+                     session_id = resp.json().get("name", "").split("/")[-1] # if resource name
     
-    if not CURRENT_SESSION_ID:
-        try:
-            # Create session
-            session_url = f"{AGENT_API_URL}/apps/agent/users/default/sessions"
-            resp = requests.post(session_url, json={})
-            if resp.status_code != 200:
-                log(f"Error creating session: {resp.status_code} {resp.text}")
-                return
+                if not session_id:
+                    log("Could not extract session_id.")
+                    return
                 
-            session_id = resp.json().get("id")
-            
-            log(f"Created session: {session_id} (Response: {resp.json()})")
-            if not session_id:
-                 # Fallback if response structure is different
-                 session_id = resp.json().get("name", "").split("/")[-1] # if resource name
-
-            if not session_id:
-                log("Could not extract session_id.")
-                return
-            
-            CURRENT_SESSION_ID = session_id
-            # Save to file for persistence
-            save_session_id(CURRENT_SESSION_ID)
-        except Exception as e:
-            log(f"Exception during session creation: {e}")
-            return
-    else:
-        log(f"Reusing session: {CURRENT_SESSION_ID}")
-
-    # 2. Run Agent
-    try:
-        run_url = f"{AGENT_API_URL}/run"
-        payload = {
-            "app_name": "agent",
-            "user_id": "default",
-            "session_id": CURRENT_SESSION_ID,
-            "new_message": {
-                "parts": [
-                    {"text": PROMPT_MESSAGE}
-                ]
-            }
-        }
-        
-        log(f"Sending prompt to {run_url}...")
-        resp = requests.post(run_url, json=payload, timeout=AGENT_TIMEOUT)
-        
-        if resp.status_code == 200:
-            log("Job completed successfully.")
-            # Response is a list of Events
-            data = resp.json()
-            log(f"Agent Response Events: {len(data)}")
-
-            # --- Parse Agent Response ---
-            structured_data = {}
-            try:
-                # Extract the actual agent message.
-                # ADK response structure: { "steps": [ { "content": { "parts": [ { "text": "JSON_STRING" } ] } } ] }
-                # Or simple output if simplified.
-                # We need to parse the JSON string embedded in the response text if using structured output mode.
-                
-                agent_text = ""
-                if isinstance(data, list):
-                    for event in data:
-                        if "content" in event and event["content"]:
-                            if "parts" in event["content"]:
-                                for part in event["content"]["parts"]:
-                                    if "text" in part:
-                                        agent_text += part["text"]
-
-                if not agent_text:
-                    # Fallback
-                    agent_text = json.dumps(data)
-
-                # Try to parse agent_text as JSON (since we requested JSON mode)
-                clean_text = agent_text.strip()
-                if clean_text.startswith("```json"):
-                    clean_text = clean_text[7:]
-                if clean_text.endswith("```"):
-                    clean_text = clean_text[:-3]
-                clean_text = clean_text.strip()
-                
-                try:
-                    structured_data = json.loads(clean_text)
-                except json.JSONDecodeError:
-                    # If not JSON, save as raw text wrapped in dict
-                    structured_data = {"raw_output": agent_text}
-
-                # Log the structured response to stdout (ALWAYS)
-                log(f"Agent Response: {json.dumps(structured_data, ensure_ascii=False, indent=2)}")
-
+                CURRENT_SESSION_ID = session_id
+                # Save to file for persistence
+                save_session_id(CURRENT_SESSION_ID)
             except Exception as e:
-                log(f"Error parsing agent response: {e}")
-                structured_data = {"raw_output": str(data)}
-
-            # --- Firestore Logging ---
-            try:
-                from google.cloud import firestore
-                
-                # Check authentication
-                if "GOOGLE_APPLICATION_CREDENTIALS" in os.environ or "GOOGLE_CLOUD_PROJECT" in os.environ:
-                    # Initialize DB (assumes project ID from env or default)
-                    # For local emulator or if project ID is implicit
-                    project_id = os.environ.get("GOOGLE_CLOUD_PROJECT")
-                    if project_id:
-                        db = firestore.Client(project=project_id, database="ai-agentic-hackathon-4-db")
-                    else:
-                        db = firestore.Client(database="ai-agentic-hackathon-4-db")
-
-                    # Add metadata
-                    log_entry = {
-                        "timestamp": datetime.datetime.now(datetime.timezone.utc),
-                        "session_id": CURRENT_SESSION_ID,
-                        "data": structured_data
-                    }
-
-                    # Save to Firestore
-                    doc_ref = db.collection("agent_execution_logs").document()
-                    doc_ref.set(log_entry)
-                    log(f"Saved execution log to Firestore (ID: {doc_ref.id})")
-                
-                else:
-                    log("Skipping Firestore save: No credentials found.")
-
-            except Exception as e:
-                log(f"Error saving to Firestore: {e}")
-            # -------------------------
-
-        elif resp.status_code == 404:
-            log(f"Session not found (404). Resetting session ID.")
-            CURRENT_SESSION_ID = None
-            clear_session_id()
+                log(f"Exception during session creation: {e}")
+                return
         else:
-            log(f"Job failed: {resp.status_code} {resp.text}")
-
-    except Exception as e:
-        log(f"Exception during job execution: {e}")
+            log(f"Reusing session: {CURRENT_SESSION_ID}")
+    
+        # 2. Run Agent
+        try:
+            run_url = f"{AGENT_API_URL}/run"
+            payload = {
+                "app_name": "agent",
+                "user_id": "default",
+                "session_id": CURRENT_SESSION_ID,
+                "new_message": {
+                    "parts": [
+                        {"text": PROMPT_MESSAGE}
+                    ]
+                }
+            }
+            
+            log(f"Sending prompt to {run_url}...")
+            resp = requests.post(run_url, json=payload, timeout=AGENT_TIMEOUT)
+            
+            if resp.status_code == 200:
+                log("Job completed successfully.")
+                # Response is a list of Events
+                data = resp.json()
+                log(f"Agent Response Events: {len(data)}")
+    
+                # --- Parse Agent Response ---
+                structured_data = {}
+                try:
+                    # Extract the actual agent message.
+                    # ADK response structure: { "steps": [ { "content": { "parts": [ { "text": "JSON_STRING" } ] } } ] }
+                    # Or simple output if simplified.
+                    # We need to parse the JSON string embedded in the response text if using structured output mode.
+                    
+                    agent_text = ""
+                    if isinstance(data, list):
+                        for event in data:
+                            if "content" in event and event["content"]:
+                                if "parts" in event["content"]:
+                                    for part in event["content"]["parts"]:
+                                        if "text" in part:
+                                            agent_text += part["text"]
+    
+                    if not agent_text:
+                        # Fallback
+                        agent_text = json.dumps(data)
+    
+                    # Try to parse agent_text as JSON (since we requested JSON mode)
+                    clean_text = agent_text.strip()
+                    if clean_text.startswith("```json"):
+                        clean_text = clean_text[7:]
+                    if clean_text.endswith("```"):
+                        clean_text = clean_text[:-3]
+                    clean_text = clean_text.strip()
+                    
+                    try:
+                        structured_data = None
+                        
+                        # Robust JSON extraction:
+                        # The agent might output "Thinking" text before the JSON.
+                        end_idx = clean_text.rfind("}")
+                        if end_idx != -1:
+                            start_idx = clean_text.find("{")
+                            while start_idx != -1 and start_idx < end_idx:
+                                candidate = clean_text[start_idx : end_idx + 1]
+                                try:
+                                    structured_data = json.loads(candidate)
+                                    log(f"Successfully parsed JSON starting at index {start_idx}")
+                                    break
+                                except json.JSONDecodeError:
+                                    start_idx = clean_text.find("{", start_idx + 1)
+                        
+                        if structured_data is None:
+                             # Fallback to simple load
+                             structured_data = json.loads(clean_text)
+    
+                    except json.JSONDecodeError:
+                        # If not JSON, save as raw text wrapped in dict
+                        structured_data = {"raw_output": agent_text}
+    
+                    # Log the structured response to stdout (ALWAYS)
+                    log(f"Agent Response: {json.dumps(structured_data, ensure_ascii=False, indent=2)}")
+    
+                except Exception as e:
+                    log(f"Error parsing agent response: {e}")
+                    structured_data = {"raw_output": str(data)}
+    
+                # --- Firestore Logging ---
+                try:
+                    from google.cloud import firestore
+                    
+                    # Check authentication
+                    if "GOOGLE_APPLICATION_CREDENTIALS" in os.environ or "GOOGLE_CLOUD_PROJECT" in os.environ:
+                        # Initialize DB (assumes project ID from env or default)
+                        # For local emulator or if project ID is implicit
+                        project_id = os.environ.get("GOOGLE_CLOUD_PROJECT")
+                        if project_id:
+                            db = firestore.Client(project=project_id, database="ai-agentic-hackathon-4-db")
+                        else:
+                            db = firestore.Client(database="ai-agentic-hackathon-4-db")
+    
+                        # Add metadata
+                        log_entry = {
+                            "timestamp": datetime.datetime.now(datetime.timezone.utc),
+                            "session_id": CURRENT_SESSION_ID,
+                            "data": structured_data
+                        }
+    
+                        # Save to Firestore
+                        doc_ref = db.collection("agent_execution_logs").document()
+                        doc_ref.set(log_entry)
+                        log(f"Saved execution log to Firestore (ID: {doc_ref.id})")
+                    
+                    else:
+                        log("Skipping Firestore save: No credentials found.")
+    
+                except Exception as e:
+                    log(f"Error saving to Firestore: {e}")
+                # -------------------------
+                
+                # Success - break the retry loop
+                break
+    
+            elif resp.status_code == 404:
+                log(f"Session not found (404). Resetting session ID.")
+                CURRENT_SESSION_ID = None
+                clear_session_id()
+                
+                if attempt < max_retries:
+                    log("Retrying immediately with new session...")
+                    continue # Try again
+                else:
+                    log("Max retries reached. Aborting.")
+                    break # Exit loop after max retries
+            else:
+                log(f"Job failed: {resp.status_code} {resp.text}")
+                break # Don't retry for non-session errors
+    
+        except Exception as e:
+            log(f"Exception during job execution: {e}")
+            break
 
 def main():
     global CURRENT_SESSION_ID
