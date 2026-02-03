@@ -14,12 +14,14 @@ import types
 import re
 import collections.abc
 
-# Wrapper class to make MCP tools return Part objects for GCS URIs
+# MCPツールがGCSのURIに対してPartオブジェクトを返すようにするためのラッパークラス
 class GCSAwareMcpToolset(McpToolset):
     async def get_tools(self, *args, **kwargs) -> collections.abc.Iterable[Any]:
         tools = await super().get_tools(*args, **kwargs)
         # tools is an iterable (list), but type hint says Iterable.
+        # toolsはイテラブル（リスト）ですが、型ヒントはIterableと記載されています。
         # super implementation returns a list.
+        # superの実装はリストを返します。
         
         for tool in tools:
             if tool.name == "capture_image":
@@ -29,22 +31,26 @@ class GCSAwareMcpToolset(McpToolset):
                     result = await original_run_async(args=args, tool_context=tool_context)
                     
                     # Intercept output
+                    # 出力を傍受する
                     if isinstance(result, dict) and 'content' in result:
                         for content in result['content']:
                             # Check for GCS URI in text
+                            # テキスト内のGCS URIを確認する
                             if content.get('type') == 'text' and 'gs://' in content.get('text', ''):
                                 text = content['text']
                                 # Allow dots in URI for file extensions
+                                # ファイル拡張子のためにURI内のドットを許可する
                                 match = re.search(r'gs://[^\s\)]+', text)
                                 if match:
                                     uri = match.group(0)
                                     # Strip trailing punctuation if any (like . or , at end of sentence)
+                                    # 文末の句読点（.や,など）がある場合は削除する
                                     uri = uri.rstrip('.,;')
                                     print(f"[Agent] Detected GCS URI: {uri}")
                                     return [genai_types.Part.from_uri(file_uri=uri, mime_type="image/jpeg")]
                     return result
                 
-                # Bind wrapper to instance
+                # ラッパーをインスタンスにバインドする
                 tool.run_async = types.MethodType(gcs_aware_run_async, tool)
                 
         return tools
@@ -57,12 +63,12 @@ from typing import List, Optional
 # Gemini 3 (2026年時点の最新標準: gemini-3-flash-preview)
 MODEL_ID = "gemini-3-flash-preview"
 
-# --- Monkey Patch Start ---
+# --- モンキーパッチ開始 ---
 from google.adk.events.event import Event
 import google.adk.flows.llm_flows.functions as adk_functions
 
-# Patch ADK's __build_response_event to allow returning multimodal Parts from tools.
-# Default ADK implementation forces everything into a JSON dict, which breaks Part objects.
+# ADKの __build_response_event にパッチを適用し、ツールからマルチモーダルなPartオブジェクトを返せるようにする。
+# デフォルトのADK実装はすべてをJSON辞書に強制変換するため、Partオブジェクトが壊れてしまう。
 original_build_response_event = adk_functions.__build_response_event
 
 def custom_build_response_event(
@@ -71,25 +77,25 @@ def custom_build_response_event(
     tool_context,
     invocation_context,
 ) -> Event:
-    # Specs requires the result to be a dict.
+    # 仕様では結果は辞書型である必要がある。
     if not isinstance(function_result, dict):
         function_result = {'result': function_result}
 
     extra_parts = []
-    # Check if 'result' contains a list of Parts (from our GCSAwareMcpToolset)
+    # 'result' に Part のリストが含まれているか確認する (GCSAwareMcpToolset からのもの)
     if 'result' in function_result and isinstance(function_result['result'], list):
         if len(function_result['result']) > 0 and isinstance(function_result['result'][0], genai_types.Part):
             extra_parts = function_result['result']
-            # Replace the list of Parts in the JSON response with a textual placeholder
+            # JSONレスポンス内の Part リストをテキストのプレースホルダーに置き換える
             function_result = {'result': 'Multimodal content returned (see additional parts).'}
 
-    # Create the standard FunctionResponse part (required to close the function call)
+    # 標準の FunctionResponse パートを作成する (関数呼び出しを閉じるために必要)
     part_function_response = genai_types.Part.from_function_response(
         name=tool.name, response=function_result
     )
     part_function_response.function_response.id = tool_context.function_call_id
 
-    # Create content with BOTH the FunctionResponse and the Image Parts
+    # FunctionResponse と画像 Part の両方を含むコンテンツを作成する
     all_parts = [part_function_response] + extra_parts
     
     content = genai_types.Content(
@@ -106,9 +112,9 @@ def custom_build_response_event(
     )
     return function_response_event
 
-# Apply patch
+# パッチを適用
 adk_functions.__build_response_event = custom_build_response_event
-# --- Monkey Patch End ---
+# --- モンキーパッチ終了 ---
 
 from google.adk.sessions.database_session_service import DatabaseSessionService
 
@@ -121,9 +127,8 @@ class CustomLlmAgent(LlmAgent):
     def validate_generate_content_config(
         cls, generate_content_config: Optional[genai_types.GenerateContentConfig]
     ) -> genai_types.GenerateContentConfig:
-        # Override parent validator to allow response_schema in generate_content_config
-        # This allows us to use structured output (JSON mode) WHILE also using tools,
-        # which the parent class normally forbids.
+        # generate_content_config で response_schema を許可するために親バリデータにオーバーライドする
+        # これにより、親クラスが通常禁止しているツールの使用と同時に、構造化出力（JSONモード）を使用できるようになる。
         if not generate_content_config:
             return genai_types.GenerateContentConfig()
         return generate_content_config
@@ -143,32 +148,32 @@ class AgentOutput(BaseModel):
     comment: str = Field(description="Message or advice to the user")
 
 def create_agent():
-    # Calculate project root dynamically and relative paths
+    # プロジェクトルートと相対パスを動的に計算する
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     local_mcp_path = os.path.join(project_root, "MCP", "sensor_image_server.py")
     local_key_path = os.path.join(project_root, "agent", "ai-agentic-hackathon-4-97df01870654.json")
 
-    # --- MCP Server Path Handling ---
-    # Env var might be set to Docker path (e.g., /app/...)
+    # --- MCPサーバーパスの処理 ---
+    # 環境変数がDockerパス（例: /app/...）に設定されている可能性がある
     env_mcp_path = os.environ.get("MCP_SERVER_PATH")
     
     if env_mcp_path and os.path.exists(env_mcp_path):
         server_script_path = env_mcp_path
     else:
-        # Fallback to local relative path if env path is missing or invalid
+        # 環境変数のパスが見つからないか無効な場合、ローカルの相対パスにフォールバックする
         server_script_path = local_mcp_path
-        # Update env for visibility (optional)
+        # 可視性のために環境変数を更新する（オプション）
         os.environ["MCP_SERVER_PATH"] = server_script_path
         if env_mcp_path:
-             logger = logging.getLogger(__name__) # Logger might not be configured yet, but usually is fine, or just print
+             logger = logging.getLogger(__name__) # ロガーはまだ設定されていない可能性があるが、通常は問題ない、または単にprintする
              print(f"Warning: MCP_SERVER_PATH '{env_mcp_path}' not found. Falling back to: {server_script_path}")
 
-    # --- Credential Handling ---
-    # Env var might be set to Docker path via .env
+    # --- 認証情報の処理 ---
+    # .env経由でDockerパスに設定されている可能性がある
     env_cred_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
     
     if env_cred_path and not os.path.exists(env_cred_path):
-        # Explicit path set but invalid (e.g. /app/...), try local fallback
+        # 明示的なパスが設定されているが無効（例: /app/...）な場合、ローカルフォールバックを試行する
         if os.path.exists(local_key_path):
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = local_key_path
             print(f"Warning: Credential file '{env_cred_path}' not found. Falling back to: {local_key_path}")
@@ -180,18 +185,18 @@ def create_agent():
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = local_key_path
             print(f"Set GOOGLE_APPLICATION_CREDENTIALS to: {local_key_path}")
 
-    # Ensure google.auth sees the change by reloading default credentials if possible
-    # But usually just setting env var is enough.
-    # Let's verify the value finally set.
+    # google.auth が変更を認識するように、可能であればデフォルトの認証情報をリロードする
+    # 通常は環境変数を設定するだけで十分。
+    # 最終的に設定された値を確認する。
     final_cred_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
     print(f"Debug: Final GOOGLE_APPLICATION_CREDENTIALS = {final_cred_path}")
 
     
     MCP_TIMEOUT = float(os.environ.get("MCP_TIMEOUT", "300.0"))
     
-    # Env for subprocess
+    # サブプロセスのための環境変数
     env = os.environ.copy()
-    # Add project root to PYTHONPATH so `from MCP import ...` works
+    # `from MCP import ...` が動作するように、プロジェクトルートを PYTHONPATH に追加する
     env["PYTHONPATH"] = project_root + os.pathsep + env.get("PYTHONPATH", "")
 
     mcp_toolset = GCSAwareMcpToolset(
@@ -205,7 +210,7 @@ def create_agent():
         ),
     )
 
-    # Updated instruction to request JSON format via prompt (since config breaks vision)
+    # プロンプト経由でJSONフォーマットを要求するように変更された指示（設定がビジョンを壊すため）
     default_instruction = (
             "あなたは植物の環境を管理するマルチモーダルアシスタントです。すべての応答は**日本語**で行ってください。"
             "1. `capture_image`を使用して植物の種類を特定してください。"
@@ -275,22 +280,22 @@ def create_agent():
             "}"
     )
 
-    # Configure logger
+    # ロガーの設定
     import logging
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
 
-    # Append Firestore instruction if available
+    # Firestore の指示があれば追加する
     firestore_instruction = os.environ.get("FIRESTORE_INSTRUCTION")
     
     if not firestore_instruction:
-        # Fetch from Firestore
+        # Firestore から取得する
         try:
             from google.cloud import firestore
-            # Check creds or project env (standard checks)
+            # 認証情報またはプロジェクト環境変数の確認（標準チェック）
             if "GOOGLE_APPLICATION_CREDENTIALS" in os.environ or "GOOGLE_CLOUD_PROJECT" in os.environ:
-                 # Attempt to connect (default project or inferred)
-                 # Using explicit database if needed, or default
+                 # 接続試行（デフォルトプロジェクトまたは推論されたプロジェクト）
+                 # 必要に応じて明示的なデータベースを使用、またはデフォルトを使用
                  db = firestore.Client(database="ai-agentic-hackathon-4-db")
                  doc = db.collection("configurations").document("edge_agent").get()
                  if doc.exists:
@@ -313,12 +318,12 @@ def create_agent():
         model=Gemini(
             model=MODEL_ID,
             retry_options=HttpRetryOptions(
-                attempts=10,  # Default: 5
-                initial_delay=10,  # Default: 1.0
-                max_delay=100,  # Default: 60.0
-                exp_base=1.5,  # Default: 2
-                jitter=0.5  # Default: 1
-                # http_status_codes=[429],  # Default: [408, 429, 500, 502, 503, 504]
+                attempts=10,  # デフォルト: 5
+                initial_delay=10,  # デフォルト: 1.0
+                max_delay=100,  # デフォルト: 60.0
+                exp_base=1.5,  # デフォルト: 2
+                jitter=0.5  # デフォルト: 1
+                # http_status_codes=[429],  # デフォルト: [408, 429, 500, 502, 503, 504]
             )
         ),
         instruction=default_instruction,
