@@ -62,8 +62,9 @@ async def main():
     current_hour = now.hour
     
     # Define quiet hours (22:00 to 06:00)
-    START_QUIET_HOUR = 22
-    END_QUIET_HOUR = 6
+    # Default to 22 and 6 if not set
+    START_QUIET_HOUR = int(os.environ.get("START_QUIET_HOUR", 22))
+    END_QUIET_HOUR = int(os.environ.get("END_QUIET_HOUR", 6))
     
     is_night = False
     if START_QUIET_HOUR > END_QUIET_HOUR:

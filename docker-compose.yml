@@ -30,9 +30,9 @@ services:
       - ./agent/ai-agentic-hackathon-4-97df01870654.json:/app/agent/ai-agentic-hackathon-4-97df01870654.json
     environment:
       - AGENT_API_URL=http://agent:8080
-      - INTERVAL_MINUTES=30
-      - START_QUIET_HOUR=23
-      - END_QUIET_HOUR=7
+      - INTERVAL_MINUTES=10
+      - START_QUIET_HOUR=0
+      - END_QUIET_HOUR=0
       - TZ=Asia/Tokyo
     networks:
       - edge-agent-net
