@@ -155,6 +155,7 @@ async def main():
         from google.cloud import firestore
         
         # Strip markdown code blocks if present (just in case)
+        # Try to clean markdown first
         clean_text = agent_response_text.strip()
         if clean_text.startswith("```json"):
             clean_text = clean_text[7:]
@@ -163,7 +164,32 @@ async def main():
         clean_text = clean_text.strip()
         
         try:
-            structured_data = json.loads(clean_text)
+            structured_data = None
+            
+            # Robust JSON extraction:
+            # The agent might output "Thinking" text before the JSON.
+            end_idx = clean_text.rfind("}")
+            if end_idx != -1:
+                start_idx = clean_text.find("{")
+                while start_idx != -1 and start_idx < end_idx:
+                    candidate = clean_text[start_idx : end_idx + 1]
+                    try:
+                        structured_data = json.loads(candidate)
+                        print(f"Successfully parsed JSON starting at index {start_idx}")
+                        break
+                    except json.JSONDecodeError:
+                        start_idx = clean_text.find("{", start_idx + 1)
+            
+            if structured_data is None:
+                 try:
+                     structured_data = json.loads(clean_text)
+                 except Exception:
+                     print("Failed to find valid JSON in response.")
+                     structured_data = None
+    
+            if structured_data is None:
+                 raise json.JSONDecodeError("Could not extract JSON", agent_response_text, 0)
+    
             print("Successfully parsed agent JSON output.")
             
             # Add timestamp

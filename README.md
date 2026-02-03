@@ -306,3 +306,14 @@ MCPサーバーは、エージェント起動時にサブプロセスとして�
   - `start_logger.sh` / `stop_logger.sh`: ロガー管理スクリプト
   - `verify_mcp_mocked.py` / `verify_gcs_mocked.py`: モック検証スクリプト
 - **old/**: レガシーコード（Gemma 3n ローカルサーバー等）
+
+## データの初期化 (Reset Data)
+
+エージェントの会話履歴や記憶をリセットしたい場合は、`data/sessions.db` ファイルを削除してください。
+
+```bash
+# DBファイルの削除
+rm data/sessions.db
+```
+
+再起動時に新しいDBファイルが自動的に作成されます。
