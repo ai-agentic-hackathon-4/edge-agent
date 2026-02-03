@@ -3,10 +3,13 @@ import os
 import sys
 from typing import Any
 
+
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, McpToolset, StdioConnectionParams
 from mcp.client.stdio import StdioServerParameters
 from google.genai import types as genai_types
+from google.genai.types import HttpRetryOptions
+from google.adk.models.google_llm import Gemini
 import types
 import re
 import collections.abc
@@ -233,7 +236,7 @@ def create_agent():
             "9. **フェーズ3: 記録と終了（Logging & Finish）**"
             "   - 操作の成否（通常は成功とみなす）に基づき、以下のJSONを作成して出力し、**直ちに会話を終了してください**。"
             "   - **操作後の再確認は不要です。**"
-            "   - **操作の記録**: 設定変更やアクション（ON/OFF切替、水やり等）があった場合のみ『operation』に記録してください。現状維持（OFF継続や設定変更なし）の場合は出力しないでください。"
+            "   - **操作の記録**: 設定変更（ON/OFF切替、水やり等）があった場合のみ『operation』に記録してください。現状維持（OFF継続や設定変更なし）の場合は出力しないでください。"
             "   - キー: デバイス名（例: 'エアコン', '加湿器', 'ポンプ'）。"
             "   - 『action』: 具体的なアクション内容（例: '暖房25℃でON', 'OFF', '現状維持（設定済み）'）。"
             "   - 『comment』: 理由や補足。"
@@ -307,12 +310,22 @@ def create_agent():
 
     return LlmAgent(
         name="sensor_gemini_agent",
-        model=MODEL_ID,
+        model=Gemini(
+            model=MODEL_ID,
+            retry_options=HttpRetryOptions(
+                attempts=10,  # Default: 5
+                initial_delay=10,  # Default: 1.0
+                max_delay=100,  # Default: 60.0
+                exp_base=1.5,  # Default: 2
+                jitter=0.5  # Default: 1
+                # http_status_codes=[429],  # Default: [408, 429, 500, 502, 503, 504]
+            )
+        ),
         instruction=default_instruction,
         tools=[mcp_toolset],
         generate_content_config=genai_types.GenerateContentConfig(
             response_mime_type="application/json"
-        )
+        ),
     )
 
 root_agent = create_agent()
