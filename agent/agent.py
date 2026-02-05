@@ -142,10 +142,19 @@ class OperationDetails(BaseModel):
     comment: str = Field(description="Reason or additional info")
     severity: str = Field(description="Severity of the operation: 'info' (routine/check), 'warning' (action taken/adjustment), 'critical' (emergency)")
 
+from enum import IntEnum
+
+class GrowthStage(IntEnum):
+    SPROUT = 1      # 発芽 (Sprout)
+    SEEDLING = 2    # 育苗 (Seedling)
+    VEGETATIVE = 3  # 栄養成長 (Vegetative)
+    FLOWERING = 4   # 開花・結実 (Flowering/Fruiting)
+    HARVEST = 5     # 収穫 (Harvest)
+
 class AgentOutput(BaseModel):
     logs: List[str] = Field(description="List of operation logs (e.g., 'Air conditioner set to 25C', 'Checked sensor data')")
     plant_status: str = Field(description="Current status of the plant (e.g., 'Healthy', 'Wilting', 'Dry')")
-    growth_stage: int = Field(description="Growth stage of the plant from 1 to 5 (1: Sprout, 5: Harvest)")
+    growth_stage: GrowthStage = Field(description="Growth stage of the plant from 1 to 5 (1: Sprout, 2: Seedling, 3: Vegetative, 4: Flowering, 5: Harvest)")
     operation: Dict[str, OperationDetails] = Field(description="Details of operations performed on devices")
     comment: str = Field(description="Message or advice to the user")
 
