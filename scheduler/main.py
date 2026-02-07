@@ -313,7 +313,8 @@ def run_job():
                                     start_idx = clean_text.find("{", start_idx + 1)
                         
                         if structured_data is None:
-                    structured_data = json.loads(clean_text)
+                            # Fallback to simple load
+                            structured_data = json.loads(clean_text)
     
                     except json.JSONDecodeError:
                         # If not JSON, save as raw text wrapped in dict
