@@ -14,9 +14,17 @@ START_QUIET_HOUR = int(os.environ.get("START_QUIET_HOUR", "22")) # 22:00
 END_QUIET_HOUR = int(os.environ.get("END_QUIET_HOUR", "7"))     # 07:00
 AGENT_TIMEOUT = int(os.environ.get("AGENT_TIMEOUT", "300"))
 PROMPT_MESSAGE = "定期モニタリングを実行してください。植物の状態、土壌水分、環境データ(温度/湿度/照度)を確認し、必要なら水やりや空調調整を行い、ログに残してください。"
+HANDOVER_PROMPT = """このセッションは終了します。次の担当エージェントへの引き継ぎ資料を作成してください。
+現在の植物の健康状態、成長段階、および特に注意すべき点を詳細に分析し、
+`plant_status` および `comment` フィールドに記述してください。
+デバイスの操作は不要です（`operation`は空にするか現状維持としてください）。"""
+# Session lifetime configuration
+SESSION_LIFETIME_DAYS = int(os.environ.get("SESSION_LIFETIME_DAYS", "3"))
 
 # Session persistence file path
 SESSION_FILE_PATH = os.environ.get("SESSION_FILE_PATH", "/app/data/current_session.json")
+# Context persistence file path
+CONTEXT_FILE_PATH = os.environ.get("CONTEXT_FILE_PATH", "/app/data/latest_context.json")
 
 def log(msg):
     print(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", file=sys.stdout, flush=True)
@@ -37,20 +45,36 @@ def load_session_id():
             with open(SESSION_FILE_PATH, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 session_id = data.get("session_id")
+                start_time_iso = data.get("start_time")
+                
+                # Default to now if start_time is missing (for legacy sessions)
+                start_time = None
+                if start_time_iso:
+                    try:
+                        start_time = datetime.datetime.fromisoformat(start_time_iso)
+                    except ValueError:
+                        pass
+                
                 if session_id:
-                    log(f"Loaded session ID from file: {session_id}")
-                    return session_id
+                    log(f"Loaded session ID from file: {session_id} (Start Time: {start_time})")
+                    return session_id, start_time
     except Exception as e:
         log(f"Error loading session ID from file: {e}")
-    return None
+    return None, None
 
-def save_session_id(session_id):
+def save_session_id(session_id, start_time=None):
     """Save session ID to persistent file."""
     try:
         os.makedirs(os.path.dirname(SESSION_FILE_PATH), exist_ok=True)
+        if start_time is None:
+             start_time = datetime.datetime.now()
+        
         with open(SESSION_FILE_PATH, 'w', encoding='utf-8') as f:
-            json.dump({"session_id": session_id}, f)
-        log(f"Saved session ID to file: {session_id}")
+            json.dump({
+                "session_id": session_id, 
+                "start_time": start_time.isoformat()
+            }, f)
+        log(f"Saved session ID to file: {session_id} (Start Time: {start_time.isoformat()})")
     except Exception as e:
         log(f"Error saving session ID to file: {e}")
 
@@ -63,11 +87,40 @@ def clear_session_id():
     except Exception as e:
         log(f"Error clearing session ID file: {e}")
 
+def load_context():
+    """Load latest context from persistent file."""
+    try:
+        if os.path.exists(CONTEXT_FILE_PATH):
+            with open(CONTEXT_FILE_PATH, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception as e:
+        log(f"Error loading context from file: {e}")
+    return None
+
+def save_context(data):
+    """Save latest context to persistent file."""
+    try:
+        os.makedirs(os.path.dirname(CONTEXT_FILE_PATH), exist_ok=True)
+        # Extract relevant fields to keep context concise
+        context = {
+            "timestamp": datetime.datetime.now().isoformat(),
+            "plant_status": data.get("plant_status"),
+            "growth_stage": data.get("growth_stage"),
+            "last_operation": data.get("operation"),
+            "last_comment": data.get("comment")
+        }
+        with open(CONTEXT_FILE_PATH, 'w', encoding='utf-8') as f:
+            json.dump(context, f, ensure_ascii=False, indent=2)
+        log(f"Saved context to file.")
+    except Exception as e:
+        log(f"Error saving context to file: {e}")
+
 # State (loaded from file on startup)
 CURRENT_SESSION_ID = None
+CURRENT_SESSION_START = None
 
 def run_job():
-    global CURRENT_SESSION_ID
+    global CURRENT_SESSION_ID, CURRENT_SESSION_START
 
     if is_quiet_time():
         log(f"Skipping execution: Quiet time ({START_QUIET_HOUR}:00 - {END_QUIET_HOUR}:00)")
@@ -80,7 +133,66 @@ def run_job():
         # 1. Create/Get Session if not exists
         if not CURRENT_SESSION_ID:
             # Try to load from file first
-            CURRENT_SESSION_ID = load_session_id()
+            CURRENT_SESSION_ID, CURRENT_SESSION_START = load_session_id()
+        
+        # Check session lifetime (Time-based reset)
+        if CURRENT_SESSION_ID and CURRENT_SESSION_START:
+            now = datetime.datetime.now()
+            # If loaded session has no start time (legacy), treat as new or keep it?
+            # Let's say if we have a start time, we check elapsed time.
+            elapsed = now - CURRENT_SESSION_START
+            if elapsed.days >= SESSION_LIFETIME_DAYS:
+                 log(f"Session lifetime exceeded ({elapsed.days} days >= {SESSION_LIFETIME_DAYS} days). Starting handover...")
+                 
+                 # --- Handover Sequence ---
+                 try:
+                     handover_url = f"{AGENT_API_URL}/run"
+                     handover_payload = {
+                        "app_name": "agent",
+                        "user_id": "default",
+                        "session_id": CURRENT_SESSION_ID,
+                        "new_message": {
+                            "parts": [{"text": HANDOVER_PROMPT}]
+                        }
+                     }
+                     log(f"Sending handover prompt...")
+                     h_resp = requests.post(handover_url, json=handover_payload, timeout=AGENT_TIMEOUT)
+                     if h_resp.status_code == 200:
+                         h_data = h_resp.json()
+                         
+                         # Parse JSON logic (using similar logic to main loop, simplified here for brevity)
+                         # We can reuse a helper or just do quick extract
+                         # For now, let's reuse a simplified version or just assume standard flow
+                         # To avoid code duplication, we could refactor parsing, but for now let's do a quick best-effort parse
+                         h_text = json.dumps(h_data) 
+                         # Try to extract text content
+                         if isinstance(h_data, list) and len(h_data) > 0:
+                             parts = h_data[0].get("content", {}).get("parts", [])
+                             if parts:
+                                 h_text = parts[0].get("text", h_text)
+                         
+                         # Parse JSON string
+                         clean_h_text = h_text.strip()
+                         if clean_h_text.startswith("```json"): clean_h_text = clean_h_text[7:]
+                         if clean_h_text.endswith("```"): clean_h_text = clean_h_text[:-3]
+                         clean_h_text = clean_h_text.strip()
+                         
+                         try:
+                             h_structured = json.loads(clean_h_text)
+                             if isinstance(h_structured, dict):
+                                 save_context(h_structured)
+                                 log("Handover context saved successfully.")
+                         except:
+                             log("Failed to parse handover JSON, saving raw text as comment.")
+                             save_context({"plant_status": "Handover (Raw)", "comment": h_text})
+
+                 except Exception as he:
+                     log(f"Handover failed: {he}")
+                 # -------------------------
+
+                 CURRENT_SESSION_ID = None
+                 CURRENT_SESSION_START = None
+                 clear_session_id()
         
         if not CURRENT_SESSION_ID:
             try:
@@ -103,14 +215,34 @@ def run_job():
                     return
                 
                 CURRENT_SESSION_ID = session_id
+                CURRENT_SESSION_START = datetime.datetime.now()
                 # Save to file for persistence
-                save_session_id(CURRENT_SESSION_ID)
+                save_session_id(CURRENT_SESSION_ID, CURRENT_SESSION_START)
             except Exception as e:
                 log(f"Exception during session creation: {e}")
                 return
         else:
             log(f"Reusing session: {CURRENT_SESSION_ID}")
     
+        # Prepare Prompt with Context (if meaningful)
+        message_to_send = PROMPT_MESSAGE
+        
+        last_context = load_context()
+        if last_context:
+            context_str = "\n\n**【前回の観測記録 (Context)】**\n"
+            context_str += "以下の情報は、前回実行時の記録です。今回の判断の参考にしてください（ただし、現在のセンサー値を優先すること）。\n"
+            if last_context.get('timestamp'):
+                context_str += f"- 前回実行日時: {last_context.get('timestamp')}\n"
+            if last_context.get('plant_status'):
+                context_str += f"- 植物の状態: {last_context.get('plant_status')}\n"
+            if last_context.get('growth_stage'):
+                context_str += f"- 成長段階(GrowthStage): {last_context.get('growth_stage')}\n"
+            if last_context.get('last_operation'):
+                ops = json.dumps(last_context.get('last_operation'), ensure_ascii=False)
+                context_str += f"- 前回操作: {ops}\n"
+            
+            message_to_send += context_str
+
         # 2. Run Agent
         try:
             run_url = f"{AGENT_API_URL}/run"
@@ -120,7 +252,7 @@ def run_job():
                 "session_id": CURRENT_SESSION_ID,
                 "new_message": {
                     "parts": [
-                        {"text": PROMPT_MESSAGE}
+                        {"text": message_to_send}
                     ]
                 }
             }
@@ -181,8 +313,7 @@ def run_job():
                                     start_idx = clean_text.find("{", start_idx + 1)
                         
                         if structured_data is None:
-                             # Fallback to simple load
-                             structured_data = json.loads(clean_text)
+                    structured_data = json.loads(clean_text)
     
                     except json.JSONDecodeError:
                         # If not JSON, save as raw text wrapped in dict
@@ -190,6 +321,10 @@ def run_job():
     
                     # Log the structured response to stdout (ALWAYS)
                     log(f"Agent Response: {json.dumps(structured_data, ensure_ascii=False, indent=2)}")
+
+                    # Save context for next run
+                    if isinstance(structured_data, dict) and "plant_status" in structured_data:
+                        save_context(structured_data)
     
                 except Exception as e:
                     log(f"Error parsing agent response: {e}")
@@ -229,11 +364,13 @@ def run_job():
                 # -------------------------
                 
                 # Success - break the retry loop
+                # No need to update session file on every turn since we only track start time
                 break
     
-            elif resp.status_code == 404:
-                log(f"Session not found (404). Resetting session ID.")
+            elif resp.status_code == 404 or resp.status_code == 500:
+                log(f"Session error ({resp.status_code}). Resetting session ID.")
                 CURRENT_SESSION_ID = None
+                CURRENT_SESSION_START = None
                 clear_session_id()
                 
                 if attempt < max_retries:
@@ -255,9 +392,9 @@ def main():
     log(f"Scheduler started. Target: {AGENT_API_URL}, Interval: {INTERVAL_MINUTES} min")
     
     # Load session ID from file on startup
-    CURRENT_SESSION_ID = load_session_id()
+    CURRENT_SESSION_ID, CURRENT_SESSION_START = load_session_id()
     if CURRENT_SESSION_ID:
-        log(f"Restored session from previous run: {CURRENT_SESSION_ID}")
+        log(f"Restored session from previous run: {CURRENT_SESSION_ID} (Start: {CURRENT_SESSION_START})")
     
     # Run once immediately on startup? Or wait?
     # Usually better to wait or run after small delay.
