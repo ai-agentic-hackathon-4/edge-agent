@@ -1,0 +1,29 @@
+
+# Data & logs
+data/
+agent/.adk/
+scripts/logs/
+*.log
+*.sqlite
+*.db
+old/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+env/
+venv/
+*.egg-info/
+.coverage
+.pytest_cache/
+
+# IDE/System
+.idea/
+.vscode/
+.DS_Store
+
+# Large assets
+*.mp4
+*.MOV
+*.iso
