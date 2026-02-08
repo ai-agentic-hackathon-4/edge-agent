@@ -6,3 +6,7 @@ data
 __pycache__
 *.pyc
 *.pyo
+scheduler/__pycache__
+agent/__pycache__
+discord_logger/__pycache__
+web_ui/__pycache__
