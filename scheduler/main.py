@@ -17,6 +17,7 @@ PROMPT_MESSAGE = "定期モニタリングを実行してください。植物�
 HANDOVER_PROMPT = """このセッションは終了します。次の担当エージェントへの引き継ぎ資料を作成してください。
 現在の植物の健康状態、成長段階、および特に注意すべき点を詳細に分析し、
 `plant_status` および `comment` フィールドに記述してください。
+なお、1回目の間引きは完了しており、上から見るとスカスカです。
 デバイスの操作は不要です（`operation`は空にするか現状維持としてください）。"""
 # Session lifetime configuration
 SESSION_LIFETIME_DAYS = int(os.environ.get("SESSION_LIFETIME_DAYS", "3"))
