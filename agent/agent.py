@@ -351,10 +351,10 @@ def create_agent():
         model=Gemini(
             model=MODEL_ID,
             retry_options=HttpRetryOptions(
-                attempts=10,  # デフォルト: 5
-                initial_delay=10,  # デフォルト: 1.0
-                max_delay=100,  # デフォルト: 60.0
-                exp_base=1.5,  # デフォルト: 2
+                attempts=500,  # "Ultra High Frequency" strategy
+                initial_delay=1,  # デフォルト: 1.0
+                max_delay=5,  # Cap at 5s
+                exp_base=1.1,  # Slow exponential growth
                 jitter=0.5  # デフォルト: 1
                 # http_status_codes=[429],  # デフォルト: [408, 429, 500, 502, 503, 504]
             )
