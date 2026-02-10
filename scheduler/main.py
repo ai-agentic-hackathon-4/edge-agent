@@ -10,6 +10,7 @@ import json
 # Configuration
 AGENT_API_URL = os.environ.get("AGENT_API_URL", "http://agent:8080")
 INTERVAL_MINUTES = int(os.environ.get("INTERVAL_MINUTES", "30"))
+QUIET_INTERVAL_MINUTES = int(os.environ.get("QUIET_INTERVAL_MINUTES", "120"))
 START_QUIET_HOUR = int(os.environ.get("START_QUIET_HOUR", "22")) # 22:00
 END_QUIET_HOUR = int(os.environ.get("END_QUIET_HOUR", "7"))     # 07:00
 AGENT_TIMEOUT = int(os.environ.get("AGENT_TIMEOUT", "1500"))
@@ -26,17 +27,34 @@ SESSION_FILE_PATH = os.environ.get("SESSION_FILE_PATH", "/app/data/current_sessi
 # Context persistence file path
 CONTEXT_FILE_PATH = os.environ.get("CONTEXT_FILE_PATH", "/app/data/latest_context.json")
 
+# Global state for tracking last successful run
+LAST_RUN_TIME = None
+
 def log(msg):
     print(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", file=sys.stdout, flush=True)
 
-def is_quiet_time():
-    now = datetime.datetime.now()
-    hour = now.hour
+def is_quiet_hour(hour):
     # Handle overnight range (e.g. 22 to 7)
     if START_QUIET_HOUR > END_QUIET_HOUR:
         return hour >= START_QUIET_HOUR or hour < END_QUIET_HOUR
     else:
         return START_QUIET_HOUR <= hour < END_QUIET_HOUR
+
+def should_skip_quiet_time():
+    global LAST_RUN_TIME
+    now = datetime.datetime.now()
+    hour = now.hour
+    
+    if is_quiet_hour(hour):
+        if LAST_RUN_TIME is not None:
+            elapsed_minutes = (now - LAST_RUN_TIME).total_seconds() / 60
+            if elapsed_minutes < QUIET_INTERVAL_MINUTES:
+                remaining = int(QUIET_INTERVAL_MINUTES - elapsed_minutes)
+                log(f"In quiet hours ({START_QUIET_HOUR}:00 - {END_QUIET_HOUR}:00). Skipping because only {int(elapsed_minutes)} min passed since last run. Next run in approx {remaining} min.")
+                return True
+        log(f"In quiet hours, but enough time has passed since last run ({QUIET_INTERVAL_MINUTES} min). Executing...")
+    
+    return False
 
 def load_session_id():
     """Load session ID from persistent file."""
@@ -122,8 +140,7 @@ CURRENT_SESSION_START = None
 def run_job():
     global CURRENT_SESSION_ID, CURRENT_SESSION_START
 
-    if is_quiet_time():
-        log(f"Skipping execution: Quiet time ({START_QUIET_HOUR}:00 - {END_QUIET_HOUR}:00)")
+    if should_skip_quiet_time():
         return
 
     log("Starting periodic monitoring job...")
@@ -365,6 +382,7 @@ def run_job():
                 # -------------------------
                 
                 # Success - break the retry loop
+                LAST_RUN_TIME = datetime.datetime.now()
                 # No need to update session file on every turn since we only track start time
                 break
     
@@ -389,7 +407,7 @@ def run_job():
             break
 
 def main():
-    global CURRENT_SESSION_ID
+    global CURRENT_SESSION_ID, LAST_RUN_TIME
     log(f"Scheduler started. Target: {AGENT_API_URL}, Interval: {INTERVAL_MINUTES} min")
     
     # Load session ID from file on startup
