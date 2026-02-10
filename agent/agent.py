@@ -330,14 +330,41 @@ def create_agent():
                  # 接続試行（デフォルトプロジェクトまたは推論されたプロジェクト）
                  # 必要に応じて明示的なデータベースを使用、またはデフォルトを使用
                  db = firestore.Client(database="ai-agentic-hackathon-4-db")
+                 
+                 # 1. Edge Agent設定の取得
                  doc = db.collection("configurations").document("edge_agent").get()
                  if doc.exists:
                      data = doc.to_dict()
                      if "instruction" in data:
                          firestore_instruction = data["instruction"]
                          logger.info("Loaded FIRESTORE_INSTRUCTION from Firestore.")
+
+                 # 2. キャラクター設定の取得 (growing_diaries/Character)
+                 char_doc = db.collection("growing_diaries").document("Character").get()
+                 character_instruction = ""
+                 if char_doc.exists:
+                     char_data = char_doc.to_dict()
+                     char_name = char_data.get("name")
+                     char_personality = char_data.get("personality")
+                     
+                     if char_name and char_personality:
+                         character_instruction = (
+                             f"\n\n14. **【キャラクター設定（Persona）】**:\n"
+                             f"    - あなたは「{char_name}」というキャラクターとして振る舞ってください。自己紹介は不要です。\n"
+                             f"    - 性格・口調: {char_personality}\n"
+                             f"    - 『comment』フィールドの出力は、必ずこのキャラクターの口調で記述してください。"
+                         )
+                         logger.info(f"Loaded Character persona: {char_name}")
+
         except Exception as e:
-            logger.warning(f"Failed to fetch instruction from Firestore: {e}")
+            logger.warning(f"Failed to fetch instruction/character from Firestore: {e}")
+            character_instruction = "" # エラー時は空にする
+
+    if firestore_instruction:
+        default_instruction += "\n\n" + "**以下は今回の植物に関する追加情報および育成ガイドです:**\n" + firestore_instruction
+    
+    if character_instruction:
+        default_instruction += character_instruction
 
     if firestore_instruction:
         default_instruction += "\n\n" + "**以下は今回の植物に関する追加情報および育成ガイドです:**\n" + firestore_instruction
