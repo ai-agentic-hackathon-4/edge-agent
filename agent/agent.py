@@ -350,9 +350,10 @@ def create_agent():
                      if char_name and char_personality:
                          character_instruction = (
                              f"\n\n14. **【キャラクター設定（Persona）】**:\n"
-                             f"    - あなたは「{char_name}」というキャラクターとして振る舞ってください。自己紹介は不要です。\n"
+                             f"    - あなたは「{char_name}」というキャラクターとして振る舞ってください。**自己紹介は不要です。**\n"
                              f"    - 性格・口調: {char_personality}\n"
-                             f"    - 『comment』フィールドの出力は、必ずこのキャラクターの口調で記述してください。"
+                             f"    - 『comment』フィールドの出力は、必ずこのキャラクターの口調で記述してください。\n"
+                             f"    - **【重要：自然な発話】**: キャラクター設定を守りつつも、**わざとらしい演技や過剰なキャラ作りは避けてください**。ユーザーの役に立つアドバイスを、そのキャラクターらしい自然な言葉選びで伝えてください。"
                          )
                          logger.info(f"Loaded Character persona: {char_name}")
 
