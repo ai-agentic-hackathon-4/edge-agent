@@ -6,8 +6,11 @@ import pathlib
 from typing import Optional, Tuple
 
 import httpx
+import asyncio
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ImageContent, TextContent
+from google.cloud import firestore
+from google.cloud import storage
 
 # Default sensor API base. Override per call (base_url param) or via SENSOR_API_BASE.
 DEFAULT_BASE_URL = os.getenv("SENSOR_API_BASE", "http://192.168.11.226:8000").rstrip("/")
@@ -405,6 +408,68 @@ async def control_light(
     ]
 
 
+
+# ----------------------------------------------------------------------
+# Helper functions for Discord Notification (Character Info)
+# ----------------------------------------------------------------------
+
+def _get_character_info_sync():
+    """
+    Fetches character info (name, image_url) from Firestore.
+    Path: /prod_growing_diaries/Character
+    Database: ai-agentic-hackathon-4-db
+    """
+    try:
+        project_id = os.environ.get("GOOGLE_CLOUD_PROJECT")
+        # Initialize Firestore with specific database
+        db = firestore.Client(project=project_id, database="ai-agentic-hackathon-4-db")
+        
+        doc_ref = db.collection("prod_growing_diaries").document("Character")
+        doc = doc_ref.get()
+        
+        if doc.exists:
+            data = doc.to_dict()
+            # Try common field names
+            name = data.get("name") or data.get("character_name")
+            image_url = data.get("image_url") or data.get("icon_url") or data.get("public_url")
+            return name, image_url
+            
+    except Exception as e:
+        sys.stderr.write(f"Error fetching character info from Firestore: {e}\n")
+    
+    return None, None
+
+def _sign_gcs_url_sync(gcs_uri):
+    """
+    Generates a signed URL for a GCS URI (valid for 1 hour).
+    Discord needs a publicly accessible URL.
+    """
+    if not gcs_uri or not gcs_uri.startswith("gs://"):
+        return gcs_uri # Return as is if not gs:// (e.g. https or None)
+    
+    try:
+        client = storage.Client()
+        # Parse gs://bucket/blob_name
+        nopre = gcs_uri.replace("gs://", "")
+        if "/" not in nopre:
+            return None
+            
+        bucket_name, blob_name = nopre.split("/", 1)
+        
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+        
+        url = blob.generate_signed_url(
+            version="v4",
+            expiration=datetime.timedelta(days=7),
+            method="GET"
+        )
+        return url
+    except Exception as e:
+        sys.stderr.write(f"Error signing GCS URL: {e}\n")
+        return None
+
+
 @server.tool()
 async def send_discord_notification(
     message: str,
@@ -423,10 +488,23 @@ async def send_discord_notification(
     if not url:
          return [TextContent(type="text", text="Error: No Discord Webhook URL configured.")]
 
+    # Fetch character info from Firestore to customize the notification
+    # We use firestore/storage sync clients, so run in thread to avoid blocking async loop
+    char_name, char_image_uri = await asyncio.to_thread(_get_character_info_sync)
+    
+    avatar_url = None
+    if char_image_uri:
+        avatar_url = await asyncio.to_thread(_sign_gcs_url_sync, char_image_uri)
+
     payload = {
         "content": message
     }
-
+    
+    # Add custom username and avatar if available
+    if char_name:
+        payload["username"] = char_name
+    if avatar_url:
+        payload["avatar_url"] = avatar_url
 
     async with httpx.AsyncClient(timeout=timeout_seconds) as client:
         try:
