@@ -431,7 +431,7 @@ def _get_character_info_sync():
             data = doc.to_dict()
             # Try common field names
             name = data.get("name") or data.get("character_name")
-            image_url = data.get("image_url") or data.get("icon_url") or data.get("public_url")
+            image_url = data.get("image_url") or data.get("icon_url") or data.get("public_url") or data.get("image_uri")
             return name, image_url
             
     except Exception as e:
@@ -444,13 +444,21 @@ def _sign_gcs_url_sync(gcs_uri):
     Generates a signed URL for a GCS URI (valid for 1 hour).
     Discord needs a publicly accessible URL.
     """
-    if not gcs_uri or not gcs_uri.startswith("gs://"):
-        return gcs_uri # Return as is if not gs:// (e.g. https or None)
-    
+    if not gcs_uri:
+        return None
+        
+    # Handle https://storage.googleapis.com/bucket/blob format
+    if gcs_uri.startswith("https://storage.googleapis.com/"):
+        nopre = gcs_uri.replace("https://storage.googleapis.com/", "")
+    elif gcs_uri.startswith("gs://"):
+        nopre = gcs_uri.replace("gs://", "")
+    else:
+        # Assume it's already a public URL or we can't sign it
+        return gcs_uri
+
     try:
         client = storage.Client()
-        # Parse gs://bucket/blob_name
-        nopre = gcs_uri.replace("gs://", "")
+        # Parse bucket/blob_name
         if "/" not in nopre:
             return None
             

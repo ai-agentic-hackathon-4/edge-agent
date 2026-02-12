@@ -258,7 +258,7 @@ def create_agent():
                          logger.info("Loaded FIRESTORE_INSTRUCTION from Firestore.")
 
                  # 2. キャラクター設定の取得 (growing_diaries/Character)
-                 char_doc = db.collection("growing_diaries").document("Character").get()
+                 char_doc = db.collection("prod_growing_diaries").document("Character").get()
                  character_instruction = ""
                  if char_doc.exists:
                      char_data = char_doc.to_dict()
