@@ -364,48 +364,37 @@ async def control_pump(
     ]
 
 
-# @server.tool()
-# async def control_light(
-#     is_on: bool,
-#     brightness: int = 100,
-#     color: str = "255:255:255",
-#     color_temperature: int = 2700,
-#     base_url: Optional[str] = None,
-#     timeout_seconds: float = 10.0,
-# ):
-#     """
-#     Control the Smart Bulb (SwitchBot Color Bulb).
-#     Use this to supplement light when BH1750 lux is low during the day.
-#     Args:
-#         is_on (bool): Power state.
-#         brightness (int): 1-100.
-#         color (str): RGB string "255:255:255". Default white.
-#         color_temperature (int): 2700-6500. Default 2700 (Warm).
-#     """
-#     base = (base_url or DEFAULT_BASE_URL).rstrip("/")
-#     url = f"{base}/control/smart-bulb/settings"
-    
-#     payload = {
-#         "is_on": is_on,
-#         "brightness": brightness,
-#         "color": color,
-#         "color_temperature": color_temperature
-#     }
+@server.tool()
+async def control_plug_mini(
+    is_on: bool,
+    base_url: Optional[str] = None,
+    timeout_seconds: float = 10.0,
+):
+    """
+    Control the Plug Mini to toggle the grow light on/off.
+    Use this to supplement light when BH1750 lux is low during the day.
+    Args:
+        is_on (bool): Power state.
+    """
+    base = (base_url or DEFAULT_BASE_URL).rstrip("/")
+    url = f"{base}/control/plug-mini/settings"
 
-#     async with httpx.AsyncClient(timeout=timeout_seconds) as client:
-#         try:
-#             resp = await client.post(url, json=payload)
-#             resp.raise_for_status()
-#             data = resp.json()
-#         except httpx.HTTPError as e:
-#             return [TextContent(type="text", text=f"Error controlling Light: {e}")]
-    
-#     return [
-#         TextContent(
-#             type="text",
-#             text=f"Light control command sent. Settings: {payload}. Response: {data}"
-#         )
-#     ]
+    payload = {"is_on": is_on}
+
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        try:
+            resp = await client.post(url, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+        except httpx.HTTPError as e:
+            return [TextContent(type="text", text=f"Error controlling Plug Mini: {e}")]
+
+    return [
+        TextContent(
+            type="text",
+            text=f"Plug Mini control command sent. is_on={is_on}. Response: {data}"
+        )
+    ]
 
 
 
