@@ -61,8 +61,8 @@ from typing import List, Optional
 
 # Vertex AI / Gemini 設定（値は環境変数で上書きしてください）
 # Gemini 3 (2026年時点の最新標準: gemini-3-flash-preview)
-# MODEL_ID = "gemini-3-flash-preview"
-MODEL_ID = "gemini-3-pro-preview"
+MODEL_ID = "gemini-3-flash-preview"
+# MODEL_ID = "gemini-3-pro-preview"
 
 # --- モンキーパッチ開始 ---
 from google.adk.events.event import Event

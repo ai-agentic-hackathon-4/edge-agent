@@ -20,7 +20,7 @@ HANDOVER_PROMPT = """このセッションは終了します。次の担当エ�
 `plant_status` および `comment` フィールドに記述してください。
 デバイスの操作は不要です（`operation`は空にするか現状維持としてください）。"""
 # Session lifetime configuration
-SESSION_LIFETIME_DAYS = int(os.environ.get("SESSION_LIFETIME_DAYS", "3"))
+SESSION_LIFETIME_DAYS = int(os.environ.get("SESSION_LIFETIME_DAYS", "2"))
 
 # Session persistence file path
 SESSION_FILE_PATH = os.environ.get("SESSION_FILE_PATH", "/app/data/current_session.json")
