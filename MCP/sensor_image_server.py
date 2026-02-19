@@ -575,5 +575,79 @@ async def get_current_time():
     ]
 
 
+@server.tool()
+async def get_days_since_sowing():
+    """
+    Get the number of days since sowing (種まきからの日数).
+    Reads the sowing_date from the Firestore configurations/edge_agent document
+    and calculates the elapsed days from that date to today (JST).
+    Returns the number of days and the sowing date.
+    """
+    import pytz
+    from datetime import datetime as dt
+
+    try:
+        project_id = os.environ.get("GOOGLE_CLOUD_PROJECT")
+        db = firestore.Client(project=project_id, database="ai-agentic-hackathon-4-db")
+
+        doc_ref = db.collection("configurations").document("edge_agent")
+        doc = doc_ref.get()
+
+        if not doc.exists:
+            return [
+                TextContent(
+                    type="text",
+                    text="Error: configurations/edge_agent document not found in Firestore."
+                )
+            ]
+
+        data = doc.to_dict()
+        sowing_date_raw = data.get("sowing_date")
+
+        if sowing_date_raw is None:
+            return [
+                TextContent(
+                    type="text",
+                    text="Error: sowing_date field is not set in configurations/edge_agent. "
+                         "Please set it in Firestore (e.g. '2026-02-01')."
+                )
+            ]
+
+        jst = pytz.timezone("Asia/Tokyo")
+
+        # Handle Firestore Timestamp, datetime, or string
+        if hasattr(sowing_date_raw, "date"):
+            # datetime or Timestamp object
+            sowing_date = sowing_date_raw.astimezone(jst).date()
+        elif isinstance(sowing_date_raw, str):
+            # ISO 8601 string (e.g. "2026-02-01")
+            sowing_date = dt.strptime(sowing_date_raw, "%Y-%m-%d").date()
+        else:
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Error: sowing_date has unexpected type: {type(sowing_date_raw)}"
+                )
+            ]
+
+        today = dt.now(jst).date()
+        days_elapsed = (today - sowing_date).days
+
+        return [
+            TextContent(
+                type="text",
+                text=f"種まき日: {sowing_date.isoformat()}, 経過日数: {days_elapsed}日目"
+            )
+        ]
+
+    except Exception as e:
+        return [
+            TextContent(
+                type="text",
+                text=f"Error calculating days since sowing: {e}"
+            )
+        ]
+
+
 if __name__ == "__main__":
     server.run()
