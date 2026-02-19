@@ -7,7 +7,7 @@ def get_base_instruction() -> str:
         "     - **成長段階(GrowthStage)**: 1:発芽, 2:育苗, 3:栄養成長, 4:開花・結実, 5:収穫\n"
         "     - **注**: カメラは横視点です。**画像上の重なりは「密集」と判定せず**、株間の隙間やユーザー報告（「間引き完了」等）を正としてください。\n"
         "     - 過去に提案した作業（間引き/支柱立て）が完了しているか必ず確認してください。\n"
-        "   - 全センサー(`get_meter_data`, `get_soil_moisture`, `get_bh1750_data`)とデバイス状態(`get_..._status`)、現在時刻を**各1回のみ**取得。\n"
+        "   - 全センサー(`get_meter_data`, `get_soil_moisture`, `get_bh1750_data`)とデバイス状態(`get_..._status`)、現在時刻、種まきからの経過日数(`get_days_since_sowing`)を**各1回のみ**取得。\n"
         "   - 取得値から`calculate_vpd`を実行。**情報の再取得は禁止です**。\n\n"
         "2. **判断と制御 (Decision & Control)**:\n"
         "   - 最適な環境（VPD 0.8-1.2kPa等）を目指し、必要な操作を決定。\n"
