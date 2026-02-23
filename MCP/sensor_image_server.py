@@ -348,12 +348,19 @@ async def control_pump(
         "volume_ml": volume_ml
     }
 
+    print(f"DEBUG: Sending Pump POST to {url} with payload {payload}")
+
     async with httpx.AsyncClient(timeout=timeout_seconds) as client:
         try:
             resp = await client.post(url, json=payload)
-            resp.raise_for_status()
+            print(f"DEBUG: Pump Response Status: {resp.status_code}")
+            if resp.status_code != 200:
+                error_body = resp.text
+                print(f"DEBUG: Pump Error Response Body: {error_body}")
+                return [TextContent(type="text", text=f"Error controlling Pump: HTTP {resp.status_code} - {error_body}")]
             data = resp.json()
         except httpx.HTTPError as e:
+            print(f"DEBUG: Pump HTTP Error: {e}")
             return [TextContent(type="text", text=f"Error controlling Pump: {e}")]
     
     return [
