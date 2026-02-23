@@ -339,8 +339,13 @@ async def control_pump(
     """
     Control the Water Pump to water the plant.
     Args:
-        volume_ml (float): Amount of water in milliliters. Default 50ml.
+        volume_ml (float): Amount of water in milliliters. Default 50ml. Must be greater than 0.
     """
+    # Validate volume_ml: must be > 0, fallback to default if invalid
+    if volume_ml <= 0:
+        print(f"DEBUG: Invalid volume_ml={volume_ml}, falling back to default 50.0ml", file=sys.stderr)
+        volume_ml = 50.0
+
     base = (base_url or DEFAULT_BASE_URL).rstrip("/")
     url = f"{base}/control/pump"
     
@@ -348,19 +353,19 @@ async def control_pump(
         "volume_ml": volume_ml
     }
 
-    print(f"DEBUG: Sending Pump POST to {url} with payload {payload}")
+    print(f"DEBUG: Sending Pump POST to {url} with payload {payload}", file=sys.stderr)
 
     async with httpx.AsyncClient(timeout=timeout_seconds) as client:
         try:
             resp = await client.post(url, json=payload)
-            print(f"DEBUG: Pump Response Status: {resp.status_code}")
+            print(f"DEBUG: Pump Response Status: {resp.status_code}", file=sys.stderr)
             if resp.status_code != 200:
                 error_body = resp.text
-                print(f"DEBUG: Pump Error Response Body: {error_body}")
+                print(f"DEBUG: Pump Error Response Body: {error_body}", file=sys.stderr)
                 return [TextContent(type="text", text=f"Error controlling Pump: HTTP {resp.status_code} - {error_body}")]
             data = resp.json()
         except httpx.HTTPError as e:
-            print(f"DEBUG: Pump HTTP Error: {e}")
+            print(f"DEBUG: Pump HTTP Error: {e}", file=sys.stderr)
             return [TextContent(type="text", text=f"Error controlling Pump: {e}")]
     
     return [
